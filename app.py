@@ -3,6 +3,20 @@ import os
 import streamlit as st
 from serpapi import GoogleSearch
 
+def search_products(product, location):
+    params = {
+        "engine": "google_shopping",
+        "q": product,
+        "location": location,
+        "api_key": SERPAPI_API_KEY,
+        "hl": "en",
+        "gl": "in"
+    }
+
+    search = GoogleSearch(params)
+    results = search.get_dict()
+
+    return results.get("shopping_results", [])
 
 SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
 
