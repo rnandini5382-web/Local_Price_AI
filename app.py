@@ -181,3 +181,4 @@ if search:
             "we will connect SERPAPI to find real products, "
             "prices, stores and offers."
         )
+st.success("SerpApi key loaded successfully! 🔐")
