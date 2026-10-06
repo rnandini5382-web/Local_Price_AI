@@ -1,4 +1,11 @@
 import streamlit as st
+
+serpapi_key = st.secrets.get("SERPAPI_API_KEY")
+
+if serpapi_key:
+    st.success("✅ SerpApi key loaded successfully!")
+else:
+    st.error("❌ SerpApi key was not found!")
 import requests
 import os
 
