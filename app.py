@@ -1,17 +1,8 @@
 import streamlit as st
 
-serpapi_key = st.secrets.get("SERPAPI_API_KEY")
-
-if serpapi_key:
-    st.success("✅ SerpApi key loaded successfully!")
-else:
-    st.error("❌ SerpApi key was not found!")
-import requests
-import os
-
-# -----------------------------
+# --------------------------------------------------
 # PAGE CONFIGURATION
-# -----------------------------
+# --------------------------------------------------
 
 st.set_page_config(
     page_title="Local Price AI",
@@ -19,104 +10,142 @@ st.set_page_config(
     layout="wide"
 )
 
-# -----------------------------
-# TITLE
-# -----------------------------
+# --------------------------------------------------
+# CUSTOM CSS
+# --------------------------------------------------
 
-st.title("🛍️ Local Price AI")
-st.subheader("Find the best local prices with AI")
+st.markdown("""
+<style>
 
-st.write(
-    "Compare prices from online and local sources, "
-    "analyze deals, and get an AI-powered recommendation."
-)
+.main {
+    padding-top: 2rem;
+}
+
+.hero {
+    text-align: center;
+    padding: 25px;
+}
+
+.hero h1 {
+    font-size: 42px;
+    margin-bottom: 5px;
+}
+
+.hero p {
+    font-size: 18px;
+}
+
+.card {
+    padding: 25px;
+    border-radius: 15px;
+    border: 1px solid rgba(128,128,128,0.25);
+    margin-bottom: 20px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# --------------------------------------------------
+# HEADER
+# --------------------------------------------------
+
+st.markdown("""
+<div class="hero">
+
+<h1>🛍️ Local Price AI</h1>
+
+<p>
+Find the best local and online prices for any product using AI + real-time search.
+</p>
+
+</div>
+""", unsafe_allow_html=True)
 
 st.divider()
 
-# -----------------------------
-# INPUT SECTION
-# -----------------------------
+# --------------------------------------------------
+# PRODUCT SEARCH SECTION
+# --------------------------------------------------
 
-st.markdown("### 🔎 What are you looking for?")
+st.subheader("🔎 What are you looking for?")
 
 product = st.text_input(
-    "Product name",
-    placeholder="Example: iPhone 15 128GB"
+    "Product",
+    placeholder="Example: iPhone 16, Nike shoes, laptop, headphones..."
 )
+
+# --------------------------------------------------
+# LOCATION
+# --------------------------------------------------
+
+st.subheader("📍 Where are you located?")
 
 location = st.text_input(
-    "📍 Your location",
-    placeholder="Example: Hyderabad"
+    "Location",
+    placeholder="Example: Hyderabad, Telangana"
 )
 
+# --------------------------------------------------
+# BUDGET
+# --------------------------------------------------
+
+st.subheader("💰 Your Budget")
+
 budget = st.number_input(
-    "💰 Maximum budget (₹)",
+    "Maximum budget (₹)",
     min_value=0,
     value=50000,
     step=1000
 )
 
-radius = st.selectbox(
-    "📍 Search radius",
-    ["5 km", "10 km", "25 km", "50 km"]
-)
+# --------------------------------------------------
+# PREFERENCES
+# --------------------------------------------------
 
-st.markdown("### ⚙️ Your preferences")
+st.subheader("⚙️ Preferences")
 
 col1, col2 = st.columns(2)
 
 with col1:
+
     condition = st.selectbox(
         "Product condition",
-        ["Any", "New", "Used", "Refurbished"]
+        [
+            "Any",
+            "New",
+            "Used",
+            "Refurbished"
+        ]
     )
 
 with col2:
+
     priority = st.selectbox(
         "What matters most?",
         [
             "Lowest Price",
-            "Best Overall Deal",
+            "Best Value",
             "Nearest Store",
-            "Best Rating"
+            "Highest Rating"
         ]
     )
 
+# --------------------------------------------------
+# SEARCH BUTTON
+# --------------------------------------------------
+
 st.divider()
 
-# -----------------------------
-# SERPAPI SEARCH FUNCTION
-# -----------------------------
+search = st.button(
+    "🔍 Find Best Prices",
+    use_container_width=True
+)
 
-def search_serpapi(product, location):
+# --------------------------------------------------
+# DEMO RESPONSE
+# --------------------------------------------------
 
-    api_key = st.secrets["SERPAPI_API_KEY"]
-
-    params = {
-        "engine": "google_shopping",
-        "q": product,
-        "location": location,
-        "hl": "en",
-        "gl": "in",
-        "api_key": api_key
-    }
-
-    response = requests.get(
-        "https://serpapi.com/search.json",
-        params=params
-    )
-
-    if response.status_code != 200:
-        return None
-
-    return response.json()
-
-
-# -----------------------------
-# SEARCH BUTTON
-# -----------------------------
-
-if st.button("🚀 Find Best Prices", use_container_width=True):
+if search:
 
     if not product:
         st.warning("⚠️ Please enter a product name.")
@@ -126,106 +155,26 @@ if st.button("🚀 Find Best Prices", use_container_width=True):
 
     else:
 
-        with st.spinner("🔎 Searching the web for the best prices..."):
+        st.success("✅ Search request received!")
 
-            try:
+        st.info(
+            f"""
+            **Product:** {product}
 
-                results = search_serpapi(
-                    product,
-                    location
-                )
+            **Location:** {location}
 
-                if results is None:
-                    st.error("❌ SerpApi request failed.")
+            **Budget:** ₹{budget:,}
 
-                else:
+            **Condition:** {condition}
 
-                    st.success("✅ Search completed!")
+            **Priority:** {priority}
+            """
+        )
 
-                    # -----------------------------
-                    # SHOPPING RESULTS
-                    # -----------------------------
+        st.markdown("### 🤖 AI Agent Status")
 
-                    shopping_results = results.get(
-                        "shopping_results",
-                        []
-                    )
-
-                    st.markdown("## 🛒 Price Results")
-
-                    if not shopping_results:
-
-                        st.warning(
-                            "No shopping results were found."
-                        )
-
-                    else:
-
-                        for item in shopping_results:
-
-                            title = item.get(
-                                "title",
-                                "Unknown Product"
-                            )
-
-                            price = item.get(
-                                "price",
-                                "Price unavailable"
-                            )
-
-                            source = item.get(
-                                "source",
-                                "Unknown seller"
-                            )
-
-                            link = item.get(
-                                "link",
-                                "#"
-                            )
-
-                            rating = item.get(
-                                "rating",
-                                "N/A"
-                            )
-
-                            reviews = item.get(
-                                "reviews",
-                                "N/A"
-                            )
-
-                            with st.container():
-
-                                st.markdown(
-                                    f"### 🛍️ {title}"
-                                )
-
-                                st.write(
-                                    f"💰 **Price:** {price}"
-                                )
-
-                                st.write(
-                                    f"🏪 **Seller:** {source}"
-                                )
-
-                                st.write(
-                                    f"⭐ **Rating:** {rating}"
-                                )
-
-                                st.write(
-                                    f"💬 **Reviews:** {reviews}"
-                                )
-
-                                if link != "#":
-
-                                    st.link_button(
-                                        "🔗 View Deal",
-                                        link
-                                    )
-
-                                st.divider()
-
-            except Exception as e:
-
-                st.error(
-                    f"❌ Something went wrong: {e}"
-                )
+        st.write(
+            "Your search is ready. In the next step, "
+            "we will connect SERPAPI to find real products, "
+            "prices, stores and offers."
+        )
