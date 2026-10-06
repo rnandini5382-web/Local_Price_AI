@@ -1,5 +1,8 @@
 import streamlit as st
 import os
+import streamlit as st
+from serpapi import GoogleSearch
+
 
 SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
 
