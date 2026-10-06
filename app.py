@@ -17,6 +17,36 @@ def search_products(product, location):
     results = search.get_dict()
 
     return results.get("shopping_results", [])
+st.title("🛍️ Local Price Finder AI")
+
+product = st.text_input(
+    "What product are you looking for?",
+    placeholder="Example: iPhone 15 128GB"
+)
+
+location = st.text_input(
+    "Enter your location",
+    placeholder="Example: Hyderabad, Telangana"
+)
+
+if st.button("🔎 Find Best Prices"):
+    if product and location:
+        with st.spinner("Searching for the best prices..."):
+            results = search_products(product, location)
+
+        if results:
+            st.success(f"Found {len(results)} results!")
+
+            for item in results:
+                st.write("###", item.get("title", "Unknown Product"))
+                st.write("💰 Price:", item.get("price", "Not available"))
+                st.write("🏪 Store:", item.get("source", "Unknown"))
+                st.write("---")
+
+        else:
+            st.warning("No shopping results found.")
+    else:
+        st.error("Please enter both product and location.")
 
 SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
 
