@@ -1,4 +1,7 @@
 import streamlit as st
+import os
+
+SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
 
 # --------------------------------------------------
 # PAGE CONFIGURATION
