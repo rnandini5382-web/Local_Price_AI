@@ -462,6 +462,61 @@ if results:
                 f"₹{savings:,.0f} by choosing "
                 f"the lowest-priced option."
             )
+# =====================================================
+# MARKET PRICE INSIGHTS
+# =====================================================
+
+st.divider()
+
+st.subheader(
+    "📊 Market Price Insights"
+)
+
+average_price = sum(prices) / len(prices)
+
+savings_percentage = (
+    (savings / highest_price) * 100
+    if highest_price > 0
+    else 0
+)
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+
+    st.metric(
+        "🛍️ Listings",
+        len(priced_results)
+    )
+
+with col2:
+
+    st.metric(
+        "💰 Average Price",
+        f"₹{average_price:,.0f}"
+    )
+
+with col3:
+
+    st.metric(
+        "📉 Lowest Price",
+        f"₹{lowest_price:,.0f}"
+    )
+
+with col4:
+
+    st.metric(
+        "🎯 Savings",
+        f"{savings_percentage:.1f}%"
+    )
+
+st.info(
+    f"🤖 Market insight: "
+    f"The average listed price is "
+    f"₹{average_price:,.0f}, while the "
+    f"lowest available price is "
+    f"₹{lowest_price:,.0f}."
+)
 
 
     # =====================================================
