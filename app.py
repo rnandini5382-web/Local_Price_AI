@@ -1396,6 +1396,9 @@ st.markdown(
 # ============================================================
 # ⭐ CUSTOMER REVIEW ANALYZER
 # ============================================================
+# ============================================================
+# ⭐ CUSTOMER REVIEW ANALYZER
+# ============================================================
 
 def analyze_customer_reviews(reviews):
 
@@ -1413,7 +1416,6 @@ def analyze_customer_reviews(reviews):
     positive = 0
     negative = 0
     neutral = 0
-
     sentiments = []
 
     for review in reviews:
@@ -1432,9 +1434,7 @@ def analyze_customer_reviews(reviews):
                 review
             ).sentiment.polarity
 
-            sentiments.append(
-                polarity
-            )
+            sentiments.append(polarity)
 
             if polarity > 0.10:
 
@@ -1453,9 +1453,9 @@ def analyze_customer_reviews(reviews):
             neutral += 1
 
     total = (
-        positive +
-        negative +
-        neutral
+        positive
+        + negative
+        + neutral
     )
 
     if total == 0:
@@ -1468,6 +1468,51 @@ def analyze_customer_reviews(reviews):
             "neutral": 0,
             "total": 0
         }
+
+    average_polarity = (
+        sum(sentiments)
+        / len(sentiments)
+    )
+
+    score = (
+        (average_polarity + 1)
+        / 2
+    ) * 100
+
+    score = round(score)
+
+    positive_percentage = (
+        positive / total
+    ) * 100
+
+    negative_percentage = (
+        negative / total
+    ) * 100
+
+    if positive_percentage >= 70:
+
+        sentiment = "Very Positive 😊"
+
+    elif positive_percentage >= 50:
+
+        sentiment = "Positive 👍"
+
+    elif negative_percentage >= 50:
+
+        sentiment = "Negative 👎"
+
+    else:
+
+        sentiment = "Mixed 😐"
+
+    return {
+        "score": score,
+        "sentiment": sentiment,
+        "positive": positive,
+        "negative": negative,
+        "neutral": neutral,
+        "total": total
+    }
 
 # --------------------------------------------------------
     # SENTIMENT SCORE
