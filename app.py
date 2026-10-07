@@ -35,13 +35,27 @@ if st.button("🔎 Find Best Prices"):
             results = search_products(product, location)
 
         if results:
-            st.success(f"Found {len(results)} results!")
+    st.success(f"Found {len(results)} results! 🎉")
 
-            for item in results:
-                st.write("###", item.get("title", "Unknown Product"))
-                st.write("💰 Price:", item.get("price", "Not available"))
-                st.write("🏪 Store:", item.get("source", "Unknown"))
-                st.write("---")
+    st.subheader("💰 Price Comparison")
+
+    for item in results:
+        title = item.get("title", "Unknown Product")
+        price = item.get("price", "Not available")
+        source = item.get("source", "Unknown Store")
+        link = item.get("link", "")
+
+        st.markdown(f"### 🛍️ {title}")
+        st.write(f"💰 **Price:** {price}")
+        st.write(f"🏪 **Store:** {source}")
+
+        if link:
+            st.link_button("🛒 View Product", link)
+
+        st.divider()
+
+else:
+    st.warning("No shopping results found.")
 
         else:
             st.warning("No shopping results found.")
