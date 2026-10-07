@@ -36,7 +36,16 @@ def search_local_stores(product, location):
         return []
 
     return results.get("local_results", [])
+def calculate_deal_score(price, rating):
+    score = 0
 
+    if price is not None:
+        score += 70
+
+    if rating is not None:
+        score += rating * 6
+
+    return round(score, 2)
 
 st.title("🛍️ Local Price Finder AI")
 
