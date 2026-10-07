@@ -52,7 +52,7 @@ def search_product_prices(product, location):
         response = requests.get(
             url,
             params=params,
-            timeout=20
+            timeout=15
         )
 
         response.raise_for_status()
@@ -64,13 +64,9 @@ def search_product_prices(product, location):
             []
         )
 
-        # --------------------------------------------------------
-        # FAST FALLBACK LINKS
-        # --------------------------------------------------------
-        # Give every result a link immediately.
-        # Google Product API enrichment is only done for
-        # the first 3 results to keep the search fast.
-
+        # Keep the first search fast: one SerpApi request only.
+        # Google Shopping already provides price, rating, review
+        # count and product links for most results.
         for item in results:
 
             item["website_link"] = (
@@ -79,188 +75,6 @@ def search_product_prices(product, location):
             )
 
             item["reviews_results"] = []
-
-        # --------------------------------------------------------
-        # ENRICH ONLY TOP 3 RESULTS
-        # --------------------------------------------------------
-
-        for item in results[:3]:
-
-            product_id = item.get(
-                "product_id"
-            )
-
-            page_token = item.get(
-                "immersive_product_page_token"
-            )
-
-            if not product_id and not page_token:
-                continue
-
-            try:
-
-                product_params = {
-                    "engine": "google_product",
-                    "hl": "en",
-                    "gl": "in",
-                    "api_key": SERPAPI_API_KEY
-                }
-
-                if page_token:
-
-                    product_params[
-                        "page_token"
-                    ] = page_token
-
-                else:
-
-                    product_params[
-                        "product_id"
-                    ] = product_id
-
-                    product_params[
-                        "offer_view"
-                    ] = "true"
-
-                product_response = requests.get(
-                    "https://serpapi.com/search.json",
-                    params=product_params,
-                    timeout=10
-                )
-
-                product_response.raise_for_status()
-
-                product_data = (
-                    product_response.json()
-                )
-
-                product_results = (
-                    product_data.get(
-                        "product_results",
-                        {}
-                    )
-                )
-
-                stores = product_results.get(
-                    "stores",
-                    []
-                )
-
-                source_name = str(
-                    item.get("source", "")
-                ).strip().lower()
-
-                matching_store = None
-
-                # Prefer the same store/source.
-                for store in stores:
-
-                    store_name = str(
-                        store.get("name", "")
-                    ).strip().lower()
-
-                    if (
-                        source_name
-                        and store_name
-                        and (
-                            source_name
-                            in store_name
-                            or
-                            store_name
-                            in source_name
-                        )
-                    ):
-
-                        matching_store = store
-                        break
-
-                # Otherwise choose the store
-                # with the closest price.
-                if (
-                    matching_store is None
-                    and stores
-                ):
-
-                    target_price = item.get(
-                        "extracted_price"
-                    )
-
-                    if isinstance(
-                        target_price,
-                        (int, float)
-                    ):
-
-                        priced_stores = []
-
-                        for store in stores:
-
-                            store_price = (
-                                store.get(
-                                    "extracted_price"
-                                )
-                            )
-
-                            if isinstance(
-                                store_price,
-                                (int, float)
-                            ):
-
-                                priced_stores.append(
-                                    (
-                                        abs(
-                                            store_price
-                                            - target_price
-                                        ),
-                                        store
-                                    )
-                                )
-
-                        if priced_stores:
-
-                            priced_stores.sort(
-                                key=lambda x: x[0]
-                            )
-
-                            matching_store = (
-                                priced_stores[0][1]
-                            )
-
-                if matching_store:
-
-                    merchant_link = (
-                        matching_store.get(
-                            "link"
-                        )
-                    )
-
-                    if merchant_link:
-
-                        item[
-                            "website_link"
-                        ] = merchant_link
-
-                # Get actual user review text
-                # when the Product API provides it.
-                user_reviews = (
-                    product_results.get(
-                        "user_reviews",
-                        []
-                    )
-                )
-
-                if isinstance(
-                    user_reviews,
-                    list
-                ):
-
-                    item[
-                        "reviews_results"
-                    ] = user_reviews
-
-            except Exception:
-                # Keep the already available
-                # Shopping product link.
-                pass
 
         return results
 
@@ -979,4 +793,257 @@ if st.button(
                     )
 
             # Keep original results if filter
-   
+            # would otherwise remove everything
+            if filtered_results:
+
+                results = filtered_results
+
+
+        # ----------------------------------------------------
+        # BUDGET FILTER
+        # ----------------------------------------------------
+
+        if budget > 0:
+
+            budget_results = []
+
+            for item in results:
+
+                price = item.get(
+                    "extracted_price"
+                )
+
+                try:
+
+                    price = float(price)
+
+                    if price <= budget:
+
+                        budget_results.append(
+                            item
+                        )
+
+                except Exception:
+
+                    pass
+
+            if budget_results:
+
+                results = budget_results
+
+
+        # ----------------------------------------------------
+        # DEAL SCORE
+        # ----------------------------------------------------
+
+        for item in results:
+
+            item["deal_score"] = (
+                calculate_deal_score(item)
+            )
+
+
+        # ----------------------------------------------------
+        # PRIORITY SORTING
+        # ----------------------------------------------------
+
+        if priority == "Lowest Price":
+
+            results.sort(
+                key=lambda x:
+                x.get(
+                    "extracted_price",
+                    float("inf")
+                )
+                if isinstance(
+                    x.get("extracted_price"),
+                    (int, float)
+                )
+                else float("inf")
+            )
+
+        elif priority == "Best Overall Deal":
+
+            results.sort(
+                key=lambda x:
+                x.get(
+                    "deal_score",
+                    0
+                ),
+                reverse=True
+            )
+
+        elif priority == "Best Rating":
+
+            results.sort(
+                key=lambda x:
+                x.get(
+                    "rating",
+                    0
+                )
+                if isinstance(
+                    x.get("rating"),
+                    (int, float)
+                )
+                else 0,
+                reverse=True
+            )
+
+        elif priority == "Nearest Store":
+
+            # Online shopping results don't
+            # necessarily have distance.
+            # Keep results in SerpApi order.
+            pass
+
+
+        st.session_state.priced_results = (
+            results
+        )
+
+    else:
+
+        st.warning(
+            "⚠️ Please enter both product "
+            "and location."
+        )
+
+
+# ============================================================
+# PRICE RESULTS
+# ============================================================
+
+priced_results = (
+    st.session_state.priced_results
+)
+
+
+if priced_results:
+
+    st.divider()
+
+    st.subheader(
+        "💰 Best Price Results"
+    )
+
+    # --------------------------------------------------------
+    # DISPLAY PRODUCTS
+    # --------------------------------------------------------
+
+    for item in priced_results:
+
+        st.markdown("---")
+
+        title = item.get(
+            "title",
+            "Product"
+        )
+
+        st.subheader(
+            f"🛍️ {title}"
+        )
+
+        source = item.get(
+            "source"
+        )
+
+        if source:
+
+            st.write(
+                f"🏪 **Store:** {source}"
+            )
+
+        price = item.get(
+            "price"
+        )
+
+        extracted_price = item.get(
+            "extracted_price"
+        )
+
+        if price:
+
+            st.write(
+                f"💰 **Price:** {price}"
+            )
+
+        elif extracted_price is not None:
+
+            st.write(
+                f"💰 **Price:** "
+                f"₹{extracted_price:,.0f}"
+            )
+
+        rating = item.get(
+            "rating"
+        )
+
+        if rating:
+
+            st.write(
+                f"⭐ **Rating:** {rating}/5"
+            )
+
+        review_count = item.get(
+            "reviews"
+        )
+
+        if review_count:
+
+            st.write(
+                f"💬 **Reviews:** "
+                f"{review_count}"
+            )
+
+        deal_score = item.get(
+            "deal_score"
+        )
+
+        if deal_score:
+
+            st.write(
+                f"🎯 **Deal Score:** "
+                f"{deal_score}/100"
+            )
+
+        # ----------------------------------------------------
+        # VISIT WEBSITE BUTTON
+        # ----------------------------------------------------
+
+        product_link = (
+            item.get("website_link")
+            or item.get("product_link")
+            or item.get("link")
+        )
+
+        if product_link:
+
+            st.link_button(
+                "🌐 Visit Website",
+                product_link
+            )
+
+        else:
+
+            st.info(
+                "🌐 Website link is not "
+                "available for this result."
+            )
+
+
+    # ========================================================
+    # BEST ONLINE PRICE
+    # ========================================================
+
+    st.divider()
+
+    st.subheader(
+        "🏆 Best Online Price"
+    )
+
+    valid_prices = []
+
+    for item in priced_results:
+
+        price = item.get(
+            "extracted_price
