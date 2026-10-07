@@ -3,7 +3,7 @@ from serpapi import GoogleSearch
 
 
 # =========================================================
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # =========================================================
 
 st.set_page_config(
@@ -14,7 +14,7 @@ st.set_page_config(
 
 
 # =========================================================
-# SERPAPI - ONLINE PRODUCT SEARCH
+# SEARCH ONLINE PRODUCTS
 # =========================================================
 
 def search_products(product, location):
@@ -33,11 +33,9 @@ def search_products(product, location):
     results = search.get_dict()
 
     if "error" in results:
-
         st.error(
             f"SerpApi error: {results['error']}"
         )
-
         return []
 
     return results.get(
@@ -47,7 +45,7 @@ def search_products(product, location):
 
 
 # =========================================================
-# SERPAPI - LOCAL STORE SEARCH
+# SEARCH LOCAL STORES
 # =========================================================
 
 def search_local_stores(product, location):
@@ -66,11 +64,9 @@ def search_local_stores(product, location):
     results = search.get_dict()
 
     if "error" in results:
-
         st.error(
             f"SerpApi error: {results['error']}"
         )
-
         return []
 
     return results.get(
@@ -80,7 +76,7 @@ def search_local_stores(product, location):
 
 
 # =========================================================
-# DEAL SCORE
+# CALCULATE DEAL SCORE
 # =========================================================
 
 def calculate_deal_score(
@@ -129,8 +125,8 @@ st.title(
 )
 
 st.write(
-    "Compare online prices and discover "
-    "nearby local stores."
+    "Compare online prices, check your budget, "
+    "and discover nearby local stores."
 )
 
 
@@ -147,6 +143,7 @@ location = st.text_input(
     "Enter your location",
     placeholder="Example: Hyderabad"
 )
+
 budget = st.number_input(
     "💰 Your Maximum Budget (₹)",
     min_value=0,
@@ -156,7 +153,7 @@ budget = st.number_input(
 
 
 # =========================================================
-# INITIALIZE SESSION STATE
+# SESSION STATE
 # =========================================================
 
 if "online_results" not in st.session_state:
@@ -170,7 +167,7 @@ if "local_stores" not in st.session_state:
 
 
 # =========================================================
-# ONLINE PRICE SEARCH BUTTON
+# FIND BEST PRICES BUTTON
 # =========================================================
 
 if st.button(
@@ -199,7 +196,7 @@ if st.button(
 
 
 # =========================================================
-# DISPLAY ONLINE RESULTS
+# ONLINE RESULTS
 # =========================================================
 
 results = st.session_state.online_results
@@ -213,7 +210,7 @@ if results:
 
 
     # =====================================================
-    # FIND PRODUCTS WITH NUMERICAL PRICES
+    # PRODUCTS WITH NUMERICAL PRICES
     # =====================================================
 
     priced_results = [
@@ -227,125 +224,7 @@ if results:
             (int, float)
         )
     ]
-    #
-        # =================================================
-        # BUDGET ANALYSIS
-        # =================================================
 
-        within_budget = [
-            item
-            for item in priced_results
-            if item["extracted_price"] <= budget
-        ]
-
-        st.subheader(
-            "🎯 Budget Analysis"
-        )
-
-        if within_budget:
-
-            budget_best = min(
-                within_budget,
-                key=lambda x: x["extracted_price"]
-            )
-
-            budget_price = budget_best[
-                "extracted_price"
-            ]
-
-            remaining = budget - budget_price
-
-            st.success(
-                "🟢 Best option within your budget!"
-            )
-
-            st.write(
-                f"🛍️ **Product:** "
-                f"{budget_best.get('title', 'Unknown Product')}"
-            )
-
-            st.write(
-                f"💰 **Price:** "
-                f"₹{budget_price:,.2f}"
-            )
-
-            st.write(
-                f"💵 **Budget remaining:** "
-                f"₹{remaining:,.2f}"
-            )
-
-        else:
-
-            st.warning(
-                f"🔴 No matching product was found "
-                f"within your ₹{budget:,.0f} budget."
-            )
-
-            cheapest = min(
-                priced_results,
-                key=lambda x: x["extracted_price"]
-            )
-
-            cheapest_price = cheapest[
-                "extracted_price"
-            ]
-
-            extra_needed = (
-                cheapest_price - budget
-            )
-
-            st.info(
-                f"💡 The cheapest available option "
-                f"is ₹{cheapest_price:,.2f}. "
-                f"You would need approximately "
-                f"₹{extra_needed:,.2f} more."
-            ) =====================================================
-    # SAVINGS ANALYSIS
-    # =====================================================
-
-    if len(priced_results) >= 2:
-
-        prices = [
-            item["extracted_price"]
-            for item in priced_results
-        ]
-
-        lowest_price = min(prices)
-        highest_price = max(prices)
-
-        savings = highest_price - lowest_price
-
-        st.subheader(
-            "💰 Savings Analysis"
-        )
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            st.metric(
-                "💵 Lowest Price",
-                f"₹{lowest_price:,.0f}"
-            )
-
-        with col2:
-            st.metric(
-                "💸 Highest Price",
-                f"₹{highest_price:,.0f}"
-            )
-
-        with col3:
-            st.metric(
-                "🎯 Potential Savings",
-                f"₹{savings:,.0f}"
-            )
-
-        if savings > 0:
-
-            st.success(
-                f"🤖 You could save "
-                f"₹{savings:,.0f} by choosing "
-                f"the lowest-priced option."
-            )
 
     # =====================================================
     # BEST ONLINE PRICE
@@ -355,9 +234,7 @@ if results:
 
         best_deal = min(
             priced_results,
-            key=lambda x: x[
-                "extracted_price"
-            ]
+            key=lambda x: x["extracted_price"]
         )
 
 
@@ -408,7 +285,74 @@ if results:
 
 
     # =====================================================
-    # PRICE COMPARISON
+    # SAVINGS ANALYSIS
+    # =====================================================
+
+    if len(priced_results) >= 2:
+
+        prices = [
+
+            item["extracted_price"]
+
+            for item in priced_results
+        ]
+
+
+        lowest_price = min(prices)
+
+        highest_price = max(prices)
+
+        savings = (
+            highest_price
+            - lowest_price
+        )
+
+
+        st.divider()
+
+        st.subheader(
+            "💰 Savings Analysis"
+        )
+
+
+        col1, col2, col3 = st.columns(3)
+
+
+        with col1:
+
+            st.metric(
+                "💵 Lowest Price",
+                f"₹{lowest_price:,.0f}"
+            )
+
+
+        with col2:
+
+            st.metric(
+                "💸 Highest Price",
+                f"₹{highest_price:,.0f}"
+            )
+
+
+        with col3:
+
+            st.metric(
+                "🎯 Potential Savings",
+                f"₹{savings:,.0f}"
+            )
+
+
+        if savings > 0:
+
+            st.success(
+                f"🤖 You could potentially save "
+                f"₹{savings:,.0f} by choosing "
+                f"the lowest-priced option."
+            )
+
+
+    # =====================================================
+    # ONLINE PRICE COMPARISON
     # =====================================================
 
     st.divider()
@@ -472,298 +416,76 @@ if results:
 
 
     # =====================================================
-    # SMART DEAL RECOMMENDATION
+    # BUDGET ANALYSIS
     # =====================================================
 
     st.subheader(
-        "🤖 Smart Deal Recommendation"
+        "🎯 Budget Analysis"
     )
 
 
     if priced_results:
 
-        best_item = min(
-            priced_results,
-            key=lambda x: x[
-                "extracted_price"
-            ]
-        )
+        within_budget = [
+
+            item
+
+            for item in priced_results
+
+            if item["extracted_price"] <= budget
+        ]
 
 
-        best_price = best_item.get(
-            "extracted_price"
-        )
+        if within_budget:
 
-
-        best_product = best_item.get(
-            "title",
-            "Unknown Product"
-        )
-
-
-        best_store = best_item.get(
-            "source",
-            "Unknown Store"
-        )
-
-
-        rating = best_item.get(
-            "rating"
-        )
-
-
-        reviews = best_item.get(
-            "reviews"
-        )
-
-
-        try:
-
-            rating = float(
-                rating
-            )
-
-        except:
-
-            rating = None
-
-
-        try:
-
-            reviews = int(
-                reviews
-            )
-
-        except:
-
-            reviews = None
-
-
-        deal_score = calculate_deal_score(
-            best_price,
-            rating,
-            reviews
-        )
-
-
-        st.success(
-            "🏆 Best Deal Found!"
-        )
-
-
-        st.write(
-            f"🛍️ **Product:** "
-            f"{best_product}"
-        )
-
-
-        st.write(
-            f"💰 **Price:** "
-            f"₹{best_price:,.2f}"
-        )
-
-
-        st.write(
-            f"🏪 **Store:** "
-            f"{best_store}"
-        )
-
-
-        st.metric(
-            "🏆 Deal Score",
-            f"{deal_score}/100"
-        )
-
-
-        if rating is not None:
-
-            st.write(
-                f"⭐ **Rating:** "
-                f"{rating}/5"
+            budget_best = min(
+                within_budget,
+                key=lambda x: x["extracted_price"]
             )
 
 
-        if reviews is not None:
-
-            st.write(
-                f"💬 **Reviews:** "
-                f"{reviews:,}"
+            budget_price = (
+                budget_best["extracted_price"]
             )
 
 
-        if deal_score >= 80:
+            remaining = (
+                budget - budget_price
+            )
+
 
             st.success(
-                "🔥 Excellent deal!"
+                "🟢 Best option within your budget!"
             )
 
-        elif deal_score >= 60:
 
-            st.info(
-                "👍 Good deal."
+            st.write(
+                f"🛍️ **Product:** "
+                f"{budget_best.get(
+                    'title',
+                    'Unknown Product'
+                )}"
             )
+
+
+            st.write(
+                f"💰 **Price:** "
+                f"₹{budget_price:,.2f}"
+            )
+
+
+            st.write(
+                f"💵 **Budget remaining:** "
+                f"₹{remaining:,.2f}"
+            )
+
 
         else:
 
-            st.warning(
-                "⚠️ Consider comparing "
-                "more options."
+            cheapest = min(
+                priced_results,
+                key=lambda x: x["extracted_price"]
             )
 
 
-        st.info(
-            "🤖 Recommendation: This listing "
-            "currently offers the best combination "
-            "of available price information."
-        )
-
-
-    else:
-
-        st.warning(
-            "No numerical prices were available "
-            "to calculate a recommendation."
-        )
-
-
-# =========================================================
-# NEARBY LOCAL STORES
-# =========================================================
-
-st.divider()
-
-st.subheader(
-    "📍 Nearby Local Stores"
-)
-
-
-if st.button(
-    "📍 Find Nearby Stores"
-):
-
-    if product and location:
-
-        with st.spinner(
-            "📍 Finding nearby stores..."
-        ):
-
-            st.session_state.local_stores = (
-                search_local_stores(
-                    product,
-                    location
-                )
-            )
-
-    else:
-
-        st.error(
-            "Please enter both product "
-            "and location first."
-        )
-
-
-# =========================================================
-# DISPLAY LOCAL STORES
-# =========================================================
-
-stores = st.session_state.local_stores
-
-
-if stores:
-
-    st.success(
-        f"Found {len(stores)} nearby stores! 🎉"
-    )
-
-
-    for store in stores:
-
-        store_name = store.get(
-            "title",
-            "Unknown Store"
-        )
-
-
-        rating = store.get(
-            "rating",
-            "N/A"
-        )
-
-
-        reviews = store.get(
-            "reviews",
-            "N/A"
-        )
-
-
-        address = store.get(
-            "address",
-            "Address unavailable"
-        )
-
-
-        store_type = store.get(
-            "type",
-            "N/A"
-        )
-
-
-        st.markdown(
-            f"### 🏪 {store_name}"
-        )
-
-
-        st.write(
-            f"⭐ **Rating:** {rating}"
-        )
-
-
-        st.write(
-            f"💬 **Reviews:** {reviews}"
-        )
-
-
-        st.write(
-            f"📍 **Address:** {address}"
-        )
-
-
-        st.write(
-            f"🏷️ **Type:** {store_type}"
-        )
-
-
-        # Store links
-        links = store.get(
-            "links",
-            {}
-        )
-
-
-        if isinstance(
-            links,
-            dict
-        ):
-
-            directions = links.get(
-                "directions"
-            )
-
-
-            if directions:
-
-                st.link_button(
-                    "🗺️ Get Directions",
-                    directions
-                )
-
-
-        st.divider()
-
-
-elif product and location:
-
-    st.info(
-        "Click 📍 Find Nearby Stores "
-        "to search local businesses."
-    )
+            cheapest_price
