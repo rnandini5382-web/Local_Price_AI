@@ -1,6 +1,8 @@
 import streamlit as st
 import requests
 from urllib.parse import quote
+from textblob import TextBlob
+import re
 
 
 # ============================================================
@@ -1014,3 +1016,131 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+# ============================================================
+# ⭐ CUSTOMER REVIEW ANALYZER
+# ============================================================
+
+def analyze_customer_reviews(reviews):
+
+    if not reviews:
+
+        return {
+            "score": None,
+            "sentiment": "No review text available",
+            "positive": 0,
+            "negative": 0,
+            "neutral": 0,
+            "total": 0
+        }
+
+    positive = 0
+    negative = 0
+    neutral = 0
+
+    sentiments = []
+
+    for review in reviews:
+
+        if not isinstance(review, str):
+            continue
+
+        review = review.strip()
+
+        if not review:
+            continue
+
+        try:
+
+            polarity = TextBlob(
+                review
+            ).sentiment.polarity
+
+            sentiments.append(
+                polarity
+            )
+
+            if polarity > 0.10:
+
+                positive += 1
+
+            elif polarity < -0.10:
+
+                negative += 1
+
+            else:
+
+                neutral += 1
+
+        except Exception:
+
+            neutral += 1
+
+    total = (
+        positive +
+        negative +
+        neutral
+    )
+
+    if total == 0:
+
+        return {
+            "score": None,
+            "sentiment": "No usable reviews",
+            "positive": 0,
+            "negative": 0,
+            "neutral": 0,
+            "total": 0
+        }
+
+    # --------------------------------------------------------
+    # SENTIMENT SCORE
+    # --------------------------------------------------------
+
+    average_polarity = sum(
+        sentiments
+    ) / len(sentiments)
+
+    sentiment_score = (
+        (average_polarity + 1) / 2
+    ) * 100
+
+    sentiment_score = round(
+        sentiment_score
+    )
+
+    # --------------------------------------------------------
+    # OVERALL SENTIMENT
+    # --------------------------------------------------------
+
+    positive_percentage = (
+        positive / total
+    ) * 100
+
+    negative_percentage = (
+        negative / total
+    ) * 100
+
+    if positive_percentage >= 70:
+
+        sentiment = "Very Positive 😊"
+
+    elif positive_percentage >= 50:
+
+        sentiment = "Positive 👍"
+
+    elif negative_percentage >= 50:
+
+        sentiment = "Negative 👎"
+
+    else:
+
+        sentiment = "Mixed 😐"
+
+    return {
+        "score": sentiment_score,
+        "sentiment": sentiment,
+        "positive": positive,
+        "negative": negative,
+        "neutral": neutral,
+        "total": total
+    }
