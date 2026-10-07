@@ -133,7 +133,87 @@ if st.button("🔎 Find Best Prices"):
                         "🛒 View Best Deal",
                         best_link
                     )
+st.divider()
 
+st.subheader("📍 Nearby Local Stores")
+
+if st.button("📍 Find Nearby Stores"):
+
+    if product and location:
+
+        with st.spinner("📍 Finding nearby stores..."):
+
+            stores = search_local_stores(
+                product,
+                location
+            )
+
+        if stores:
+
+            st.success(
+                f"Found {len(stores)} local stores! 🎉"
+            )
+
+            for store in stores:
+
+                store_name = store.get(
+                    "title",
+                    "Unknown Store"
+                )
+
+                rating = store.get(
+                    "rating",
+                    "Not available"
+                )
+
+                reviews = store.get(
+                    "reviews",
+                    "Not available"
+                )
+
+                address = store.get(
+                    "address",
+                    "Address unavailable"
+                )
+
+                store_price = store.get(
+                    "price",
+                    "Price level unavailable"
+                )
+
+                st.markdown(
+                    f"### 🏪 {store_name}"
+                )
+
+                st.write(
+                    f"⭐ **Rating:** {rating}"
+                )
+
+                st.write(
+                    f"💬 **Reviews:** {reviews}"
+                )
+
+                st.write(
+                    f"📍 **Address:** {address}"
+                )
+
+                st.write(
+                    f"💰 **Price level:** {store_price}"
+                )
+
+                st.divider()
+
+        else:
+
+            st.warning(
+                "No nearby stores found."
+            )
+
+    else:
+
+        st.error(
+            "Please enter product and location first."
+        )
 
             # -----------------------------
             # All Results
