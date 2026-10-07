@@ -227,7 +227,79 @@ if results:
             (int, float)
         )
     ]
-    # =====================================================
+    #
+        # =================================================
+        # BUDGET ANALYSIS
+        # =================================================
+
+        within_budget = [
+            item
+            for item in priced_results
+            if item["extracted_price"] <= budget
+        ]
+
+        st.subheader(
+            "🎯 Budget Analysis"
+        )
+
+        if within_budget:
+
+            budget_best = min(
+                within_budget,
+                key=lambda x: x["extracted_price"]
+            )
+
+            budget_price = budget_best[
+                "extracted_price"
+            ]
+
+            remaining = budget - budget_price
+
+            st.success(
+                "🟢 Best option within your budget!"
+            )
+
+            st.write(
+                f"🛍️ **Product:** "
+                f"{budget_best.get('title', 'Unknown Product')}"
+            )
+
+            st.write(
+                f"💰 **Price:** "
+                f"₹{budget_price:,.2f}"
+            )
+
+            st.write(
+                f"💵 **Budget remaining:** "
+                f"₹{remaining:,.2f}"
+            )
+
+        else:
+
+            st.warning(
+                f"🔴 No matching product was found "
+                f"within your ₹{budget:,.0f} budget."
+            )
+
+            cheapest = min(
+                priced_results,
+                key=lambda x: x["extracted_price"]
+            )
+
+            cheapest_price = cheapest[
+                "extracted_price"
+            ]
+
+            extra_needed = (
+                cheapest_price - budget
+            )
+
+            st.info(
+                f"💡 The cheapest available option "
+                f"is ₹{cheapest_price:,.2f}. "
+                f"You would need approximately "
+                f"₹{extra_needed:,.2f} more."
+            ) =====================================================
     # SAVINGS ANALYSIS
     # =====================================================
 
