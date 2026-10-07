@@ -1058,6 +1058,17 @@ if priced_results:
             f"🏆 Best Price: "
             f"₹{best_price:,.0f}"
         )
+        best_link = best_item.get("link")
+
+if best_link:
+    st.link_button(
+        "🌐 Visit Website",
+        best_link
+    )
+else:
+    st.info(
+        "🌐 Website link is not available."
+    )
 
         if best_item.get(
             "source"
@@ -1141,14 +1152,17 @@ if priced_results:
     # ========================================================
     # AI CUSTOMER REVIEW ANALYSIS
     # ========================================================
+       # ============================================================
+# AI CUSTOMER REVIEW ANALYSIS
+# ============================================================
 
-    st.divider()
+st.divider()
 
-    st.subheader(
-        "⭐ AI Customer Review Analysis"
-    )
+st.subheader(
+    "⭐ AI Customer Review Analysis"
+)
 
-    review_data_found = False
+if priced_results:
 
     for item in priced_results:
 
@@ -1165,46 +1179,27 @@ if priced_results:
             "reviews"
         )
 
-        # Try different possible review keys
-        reviews_results = (
-            item.get(
-                "reviews_results",
-                []
-            )
+        st.markdown(
+            f"### 🛍️ {title}"
         )
 
-        if not reviews_results:
-
-            reviews_results = (
-                item.get(
-                    "reviews",
-                    []
-                )
-                if isinstance(
-                    item.get("reviews"),
-                    list
-                )
-                else []
-            )
-
-
         # ----------------------------------------------------
-        # ACTUAL REVIEW TEXT AVAILABLE
+        # CHECK FOR ACTUAL REVIEW TEXT
         # ----------------------------------------------------
 
-        if reviews_results:
+        reviews_results = item.get(
+            "reviews_results",
+            []
+        )
 
-            review_data_found = True
+        review_texts = []
 
-            st.markdown(
-                f"### 🛍️ {title}"
-            )
+        if isinstance(
+            reviews_results,
+            list
+        ):
 
-            review_texts = []
-
-            for review in (
-                reviews_results
-            ):
+            for review in reviews_results:
 
                 if isinstance(
                     review,
@@ -1212,21 +1207,14 @@ if priced_results:
                 ):
 
                     text = (
-                        review.get(
-                            "text"
-                        )
+                        review.get("text")
                         or
-                        review.get(
-                            "snippet"
-                        )
+                        review.get("content")
                         or
-                        review.get(
-                            "content"
-                        )
+                        review.get("snippet")
                     )
 
                     if text:
-
                         review_texts.append(
                             text
                         )
@@ -1240,84 +1228,66 @@ if priced_results:
                         review
                     )
 
+        # ----------------------------------------------------
+        # ACTUAL REVIEW ANALYSIS
+        # ----------------------------------------------------
 
-            if review_texts:
+        if review_texts:
 
-                analysis = (
-                    analyze_customer_reviews(
-                        review_texts
+            analysis = (
+                analyze_customer_reviews(
+                    review_texts
+                )
+            )
+
+            if analysis["score"] is not None:
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+
+                    st.metric(
+                        "🤖 AI Review Score",
+                        f'{analysis["score"]}/100'
                     )
+
+                with col2:
+
+                    st.metric(
+                        "📊 Reviews Analyzed",
+                        analysis["total"]
+                    )
+
+                st.write(
+                    f'**Overall Sentiment:** '
+                    f'{analysis["sentiment"]}'
                 )
 
-                if (
-                    analysis["score"]
-                    is not None
-                ):
+                col1, col2, col3 = st.columns(3)
 
-                    col1, col2 = (
-                        st.columns(2)
+                with col1:
+
+                    st.metric(
+                        "😊 Positive",
+                        analysis["positive"]
                     )
 
-                    with col1:
+                with col2:
 
-                        st.metric(
-                            "🤖 AI Review Score",
-                            f'{analysis["score"]}/100'
-                        )
-
-                    with col2:
-
-                        st.metric(
-                            "📊 Reviews Analyzed",
-                            analysis["total"]
-                        )
-
-                    st.write(
-                        f'**Overall Sentiment:** '
-                        f'{analysis["sentiment"]}'
+                    st.metric(
+                        "😐 Neutral",
+                        analysis["neutral"]
                     )
 
-                    col1, col2, col3 = (
-                        st.columns(3)
+                with col3:
+
+                    st.metric(
+                        "👎 Negative",
+                        analysis["negative"]
                     )
-
-                    with col1:
-
-                        st.metric(
-                            "😊 Positive",
-                            analysis[
-                                "positive"
-                            ]
-                        )
-
-                    with col2:
-
-                        st.metric(
-                            "😐 Neutral",
-                            analysis[
-                                "neutral"
-                            ]
-                        )
-
-                    with col3:
-
-                        st.metric(
-                            "👎 Negative",
-                            analysis[
-                                "negative"
-                            ]
-                        )
-
-            else:
-
-                st.info(
-                    "ℹ️ Review text is not "
-                    "available for this product."
-                )
-
 
         # ----------------------------------------------------
-        # FALLBACK: RATING BASED ANALYSIS
+        # FALLBACK WHEN REVIEW TEXT IS NOT PROVIDED
         # ----------------------------------------------------
 
         else:
@@ -1330,22 +1300,11 @@ if priced_results:
                         rating
                     )
 
-                    rating_score = round(
-                        (
-                            rating_value
-                            /
-                            5
-                        )
-                        * 100
+                    satisfaction_score = round(
+                        (rating_value / 5) * 100
                     )
 
-                    st.markdown(
-                        f"### 🛍️ {title}"
-                    )
-
-                    col1, col2 = (
-                        st.columns(2)
-                    )
+                    col1, col2 = st.columns(2)
 
                     with col1:
 
@@ -1358,73 +1317,68 @@ if priced_results:
 
                         st.metric(
                             "🤖 Satisfaction Score",
-                            f"{rating_score}/100"
+                            f"{satisfaction_score}/100"
                         )
 
                     if review_count:
 
                         st.write(
                             f"💬 **Based on:** "
-                            f"{review_count} "
-                            f"customer reviews"
+                            f"{review_count} customer reviews"
                         )
 
                     if rating_value >= 4.5:
 
                         st.success(
-                            "😊 Excellent customer "
-                            "satisfaction"
+                            "😊 Excellent customer satisfaction"
                         )
 
                     elif rating_value >= 4.0:
 
                         st.success(
-                            "👍 Very good customer "
-                            "satisfaction"
+                            "👍 Very good customer satisfaction"
                         )
 
                     elif rating_value >= 3.0:
 
                         st.warning(
-                            "😐 Mixed customer "
-                            "satisfaction"
+                            "😐 Mixed customer satisfaction"
                         )
 
                     else:
 
                         st.error(
-                            "👎 Low customer "
-                            "satisfaction"
+                            "👎 Low customer satisfaction"
                         )
 
                     st.caption(
-                        "ℹ️ SerpApi did not provide "
-                        "individual review text for "
-                        "this product. The satisfaction "
-                        "score is therefore based on "
+                        "ℹ️ Individual review text was "
+                        "not available from the current "
+                        "Google Shopping result. The "
+                        "satisfaction score is based on "
                         "the available customer rating."
                     )
 
                 except Exception:
 
-                    pass
+                    st.info(
+                        "ℹ️ Customer review information "
+                        "is unavailable."
+                    )
 
+            else:
 
-    # ========================================================
-    # REVIEW INFORMATION MESSAGE
-    # ========================================================
+                st.info(
+                    "ℹ️ No customer rating information "
+                    "was returned for this product."
+                )
 
-    if not review_data_found:
+else:
 
-        st.info(
-            "💡 Individual review text was not "
-            "available in the current Google Shopping "
-            "results. The analysis above uses the "
-            "available customer ratings instead of "
-            "inventing review sentiment."
-        )
-
-
+    st.info(
+        "🔎 Search for a product first to see "
+        "customer review analysis."
+    )
     # ========================================================
     # SMART DEAL RECOMMENDATION
     # ========================================================
