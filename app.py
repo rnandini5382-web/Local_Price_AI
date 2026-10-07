@@ -200,6 +200,83 @@ if st.button("🔎 Find Best Prices"):
 st.divider()
 
 st.subheader("📍 Nearby Local Stores")
+st.subheader("🤖 Smart Deal Recommendation")
+
+if priced_results:
+
+    best_item = priced_results[0]
+
+    best_price = best_item.get(
+        "extracted_price"
+    )
+
+    best_rating = best_item.get(
+        "rating"
+    )
+
+    best_reviews = best_item.get(
+        "reviews"
+    )
+
+    try:
+        best_rating = float(best_rating)
+    except:
+        best_rating = None
+
+    try:
+        best_reviews = int(best_reviews)
+    except:
+        best_reviews = None
+
+    deal_score = calculate_deal_score(
+        best_price,
+        best_rating,
+        best_reviews
+    )
+
+    st.success(
+        "🏆 Best Deal Recommendation"
+    )
+
+    st.write(
+        f"🛍️ **Product:** "
+        f"{best_item.get('title', 'Unknown Product')}"
+    )
+
+    st.write(
+        f"💰 **Price:** "
+        f"{best_item.get('price', 'N/A')}"
+    )
+
+    st.write(
+        f"🏪 **Store:** "
+        f"{best_item.get('source', 'Unknown Store')}"
+    )
+
+    st.metric(
+        "🏆 Deal Score",
+        f"{deal_score}/100"
+    )
+
+    if deal_score >= 80:
+        st.success(
+            "🔥 Excellent deal!"
+        )
+    elif deal_score >= 60:
+        st.info(
+            "👍 Good deal."
+        )
+    else:
+        st.warning(
+            "⚠️ Consider comparing more options."
+        )
+
+else:
+
+    st.info(
+        "🤖 Not enough price information "
+        "to calculate a deal score."
+    )
 
 
 if st.button("📍 Find Nearby Stores"):
