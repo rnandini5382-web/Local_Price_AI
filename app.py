@@ -100,12 +100,12 @@ def search_local_stores(product, location):
 
     url = "https://serpapi.com/search.json"
 
-    query = f"{product} stores near {location}"
-
     params = {
         "engine": "google_maps",
-        "q": query,
+        "type": "search",
+        "q": product + " stores",
         "location": location,
+        "m": 10000,
         "hl": "en",
         "gl": "in",
         "api_key": SERPAPI_API_KEY
@@ -119,9 +119,20 @@ def search_local_stores(product, location):
             timeout=30
         )
 
-        response.raise_for_status()
-
         data = response.json()
+
+        if response.status_code != 200:
+
+            error_message = data.get(
+                "error",
+                "Unknown SerpApi error"
+            )
+
+            st.error(
+                f"❌ SerpApi error: {error_message}"
+            )
+
+            return []
 
         return data.get(
             "local_results",
