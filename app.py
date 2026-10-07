@@ -169,6 +169,119 @@ if "local_stores" not in st.session_state:
 # =========================================================
 # FIND BEST PRICES BUTTON
 # =========================================================
+# =========================================================
+# NEARBY LOCAL STORES BUTTON
+# =========================================================
+
+st.divider()
+
+st.subheader(
+    "📍 Nearby Local Stores"
+)
+
+if st.button(
+    "📍 Find Nearby Stores"
+):
+
+    if product and location:
+
+        with st.spinner(
+            "📍 Finding nearby stores..."
+        ):
+
+            st.session_state.local_stores = (
+                search_local_stores(
+                    product,
+                    location
+                )
+            )
+
+    else:
+
+        st.error(
+            "Please enter both product "
+            "and location first."
+        )
+
+
+# =========================================================
+# DISPLAY LOCAL STORES
+# =========================================================
+
+stores = st.session_state.local_stores
+
+if stores:
+
+    st.success(
+        f"Found {len(stores)} nearby stores! 🎉"
+    )
+
+    for store in stores:
+
+        store_name = store.get(
+            "title",
+            "Unknown Store"
+        )
+
+        rating = store.get(
+            "rating",
+            "N/A"
+        )
+
+        reviews = store.get(
+            "reviews",
+            "N/A"
+        )
+
+        address = store.get(
+            "address",
+            "Address unavailable"
+        )
+
+        store_type = store.get(
+            "type",
+            "N/A"
+        )
+
+        st.markdown(
+            f"### 🏪 {store_name}"
+        )
+
+        st.write(
+            f"⭐ **Rating:** {rating}"
+        )
+
+        st.write(
+            f"💬 **Reviews:** {reviews}"
+        )
+
+        st.write(
+            f"📍 **Address:** {address}"
+        )
+
+        st.write(
+            f"🏷️ **Type:** {store_type}"
+        )
+
+        links = store.get(
+            "links",
+            {}
+        )
+
+        if isinstance(links, dict):
+
+            directions = links.get(
+                "directions"
+            )
+
+            if directions:
+
+                st.link_button(
+                    "🗺️ Get Directions",
+                    directions
+                )
+
+        st.divider()
 
 if st.button(
     "🔎 Find Best Prices"
