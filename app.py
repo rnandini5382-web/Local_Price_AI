@@ -36,14 +36,25 @@ def search_local_stores(product, location):
         return []
 
     return results.get("local_results", [])
-def calculate_deal_score(price, rating):
+
+def calculate_deal_score(price, rating, reviews):
     score = 0
 
     if price is not None:
-        score += 70
+        score += 50
 
     if rating is not None:
-        score += rating * 6
+        score += (rating / 5) * 30
+
+    if reviews is not None:
+        if reviews >= 1000:
+            score += 20
+        elif reviews >= 500:
+            score += 15
+        elif reviews >= 100:
+            score += 10
+        else:
+            score += 5
 
     return round(score, 2)
 
