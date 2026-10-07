@@ -147,6 +147,12 @@ location = st.text_input(
     "Enter your location",
     placeholder="Example: Hyderabad"
 )
+budget = st.number_input(
+    "💰 Your Maximum Budget (₹)",
+    min_value=0,
+    value=50000,
+    step=1000
+)
 
 
 # =========================================================
