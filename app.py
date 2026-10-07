@@ -1046,4 +1046,4 @@ if priced_results:
     for item in priced_results:
 
         price = item.get(
-            "extracted_price
+            "extracted_price"
