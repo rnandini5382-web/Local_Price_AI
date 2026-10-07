@@ -717,7 +717,198 @@ if len(priced_results) >= 2:
             )
 
 
+## ============================================================
+# ⭐ AI CUSTOMER REVIEW ANALYSIS
 # ============================================================
+
+st.divider()
+
+st.subheader("⭐ AI Customer Review Analysis")
+
+if priced_results:
+
+    for item in priced_results[:5]:
+
+        title = item.get(
+            "title",
+            "Product"
+        )
+
+        rating = item.get(
+            "rating"
+        )
+
+        review_count = item.get(
+            "reviews"
+        )
+
+        # ----------------------------------------------------
+        # Try to obtain review text
+        # ----------------------------------------------------
+
+        review_texts = []
+
+        possible_reviews = item.get(
+            "reviews_results",
+            []
+        )
+
+        if isinstance(
+            possible_reviews,
+            list
+        ):
+
+            for review in possible_reviews:
+
+                if isinstance(
+                    review,
+                    dict
+                ):
+
+                    text = review.get(
+                        "snippet"
+                    ) or review.get(
+                        "text"
+                    )
+
+                    if text:
+
+                        review_texts.append(
+                            text
+                        )
+
+                elif isinstance(
+                    review,
+                    str
+                ):
+
+                    review_texts.append(
+                        review
+                    )
+
+        # ----------------------------------------------------
+        # Analyze reviews
+        # ----------------------------------------------------
+
+        analysis = analyze_customer_reviews(
+            review_texts
+        )
+
+        st.markdown(
+            f"### 🛍️ {title}"
+        )
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+
+            if rating:
+
+                st.metric(
+                    "⭐ Product Rating",
+                    f"{rating}/5"
+                )
+
+            else:
+
+                st.metric(
+                    "⭐ Product Rating",
+                    "N/A"
+                )
+
+        with col2:
+
+            st.metric(
+                "💬 Review Count",
+                str(
+                    review_count
+                    if review_count
+                    else "N/A"
+                )
+            )
+
+        with col3:
+
+            if analysis["score"] is not None:
+
+                st.metric(
+                    "🧠 Review Score",
+                    f"{analysis['score']}/100"
+                )
+
+            else:
+
+                st.metric(
+                    "🧠 Review Score",
+                    "N/A"
+                )
+
+        # ----------------------------------------------------
+        # Detailed analysis
+        # ----------------------------------------------------
+
+        if analysis["score"] is not None:
+
+            st.markdown(
+                f"""
+                **Overall Customer Sentiment:**  
+                {analysis['sentiment']}
+
+                👍 **Positive Reviews:** {analysis['positive']}
+
+                😐 **Neutral Reviews:** {analysis['neutral']}
+
+                👎 **Negative Reviews:** {analysis['negative']}
+                """
+            )
+
+            # Progress bar
+
+            st.progress(
+                analysis["score"] / 100
+            )
+
+            # Verdict
+
+            if analysis["score"] >= 80:
+
+                st.success(
+                    "🏆 Customers are highly satisfied with this product."
+                )
+
+            elif analysis["score"] >= 65:
+
+                st.info(
+                    "👍 Customers generally have a positive experience."
+                )
+
+            elif analysis["score"] >= 50:
+
+                st.warning(
+                    "😐 Customer opinions are mixed."
+                )
+
+            else:
+
+                st.error(
+                    "⚠️ Customer sentiment is mostly negative."
+                )
+
+        else:
+
+            st.info(
+                "ℹ️ Detailed review text was not returned "
+                "for this product. The available rating and "
+                "review count can still be used."
+            )
+
+        st.divider()
+
+else:
+
+    st.info(
+        "🔎 Search for products first to analyze customer reviews."
+    ) ============================================================
 # 🤖 SMART DEAL RECOMMENDATION
 # ============================================================
 
