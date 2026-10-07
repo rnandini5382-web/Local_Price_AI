@@ -1058,38 +1058,24 @@ if priced_results:
             f"🏆 Best Price: "
             f"₹{best_price:,.0f}"
         )
+        best_source = best_item.get("source")
+
+        if best_source:
+            st.write(
+                f"🏪 **Available at:** {best_source}"
+            )
+
         best_link = best_item.get("link")
 
-if best_link:
-    st.link_button(
-        "🌐 Visit Website",
-        best_link
-    )
-else:
-    st.info(
-        "🌐 Website link is not available."
-    )
-
-        if best_item.get(
-            "source"
-        ):
-
-            st.write(
-                f"🏪 **Available at:** "
-                f"{best_item.get('source')}"
-            )
-
-        best_link = best_item.get(
-            "link"
-        )
-
         if best_link:
-
             st.link_button(
-                "🌐 Visit Best Deal",
+                "🌐 Visit Website",
                 best_link
             )
-
+        else:
+            st.info(
+                "🌐 Website link is not available."
+            )
 
     # ========================================================
     # SAVINGS ANALYSIS
@@ -1150,19 +1136,15 @@ else:
 
 
     # ========================================================
+    # ========================================================
     # AI CUSTOMER REVIEW ANALYSIS
     # ========================================================
-       # ============================================================
-# AI CUSTOMER REVIEW ANALYSIS
-# ============================================================
 
-st.divider()
+    st.divider()
 
-st.subheader(
-    "⭐ AI Customer Review Analysis"
-)
-
-if priced_results:
+    st.subheader(
+        "⭐ AI Customer Review Analysis"
+    )
 
     for item in priced_results:
 
@@ -1208,10 +1190,8 @@ if priced_results:
 
                     text = (
                         review.get("text")
-                        or
-                        review.get("content")
-                        or
-                        review.get("snippet")
+                        or review.get("content")
+                        or review.get("snippet")
                     )
 
                     if text:
@@ -1229,15 +1209,13 @@ if priced_results:
                     )
 
         # ----------------------------------------------------
-        # ACTUAL REVIEW ANALYSIS
+        # AI REVIEW TEXT ANALYSIS
         # ----------------------------------------------------
 
         if review_texts:
 
-            analysis = (
-                analyze_customer_reviews(
-                    review_texts
-                )
+            analysis = analyze_customer_reviews(
+                review_texts
             )
 
             if analysis["score"] is not None:
@@ -1245,14 +1223,12 @@ if priced_results:
                 col1, col2 = st.columns(2)
 
                 with col1:
-
                     st.metric(
                         "🤖 AI Review Score",
                         f'{analysis["score"]}/100'
                     )
 
                 with col2:
-
                     st.metric(
                         "📊 Reviews Analyzed",
                         analysis["total"]
@@ -1266,28 +1242,25 @@ if priced_results:
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
-
                     st.metric(
                         "😊 Positive",
                         analysis["positive"]
                     )
 
                 with col2:
-
                     st.metric(
                         "😐 Neutral",
                         analysis["neutral"]
                     )
 
                 with col3:
-
                     st.metric(
                         "👎 Negative",
                         analysis["negative"]
                     )
 
         # ----------------------------------------------------
-        # FALLBACK WHEN REVIEW TEXT IS NOT PROVIDED
+        # RATING FALLBACK
         # ----------------------------------------------------
 
         else:
@@ -1307,21 +1280,18 @@ if priced_results:
                     col1, col2 = st.columns(2)
 
                     with col1:
-
                         st.metric(
                             "⭐ Customer Rating",
                             f"{rating_value}/5"
                         )
 
                     with col2:
-
                         st.metric(
                             "🤖 Satisfaction Score",
                             f"{satisfaction_score}/100"
                         )
 
                     if review_count:
-
                         st.write(
                             f"💬 **Based on:** "
                             f"{review_count} customer reviews"
@@ -1352,11 +1322,11 @@ if priced_results:
                         )
 
                     st.caption(
-                        "ℹ️ Individual review text was "
-                        "not available from the current "
-                        "Google Shopping result. The "
-                        "satisfaction score is based on "
-                        "the available customer rating."
+                        "ℹ️ Individual review text was not "
+                        "available from the current Google "
+                        "Shopping result. The satisfaction "
+                        "score is based on the available "
+                        "customer rating."
                     )
 
                 except Exception:
@@ -1373,12 +1343,6 @@ if priced_results:
                     "was returned for this product."
                 )
 
-else:
-
-    st.info(
-        "🔎 Search for a product first to see "
-        "customer review analysis."
-    )
     # ========================================================
     # SMART DEAL RECOMMENDATION
     # ========================================================
@@ -1446,14 +1410,9 @@ else:
             f"{best_source}"
         )
 
-        # ----------------------------------------------------
-        # RECOMMENDATION REASON
-        # ----------------------------------------------------
-
         reasons = []
 
         if best_price is not None:
-
             reasons.append(
                 "competitive price"
             )
@@ -1462,32 +1421,24 @@ else:
 
             try:
 
-                if float(
-                    best_rating
-                ) >= 4:
-
+                if float(best_rating) >= 4:
                     reasons.append(
                         "strong customer rating"
                     )
 
             except Exception:
-
                 pass
 
         if best_reviews:
 
             try:
 
-                if int(
-                    best_reviews
-                ) >= 100:
-
+                if int(best_reviews) >= 100:
                     reasons.append(
                         "good review volume"
                     )
 
             except Exception:
-
                 pass
 
         if reasons:
@@ -1498,8 +1449,8 @@ else:
                 + "."
             )
 
-        best_item_link = (
-            best_item.get("link")
+        best_item_link = best_item.get(
+            "link"
         )
 
         if best_item_link:
@@ -1509,8 +1460,6 @@ else:
                 best_item_link
             )
 
-
-# ============================================================
 # FOOTER
 # ============================================================
 
