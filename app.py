@@ -367,6 +367,125 @@ def calculate_deal_score(
         pass
 
     return round(score, 2)
+# ============================================================
+# ⭐ CUSTOMER REVIEW ANALYZER
+# ============================================================
+
+def analyze_customer_reviews(reviews):
+
+    if not reviews:
+
+        return {
+            "score": None,
+            "sentiment": "No review text available",
+            "positive": 0,
+            "negative": 0,
+            "neutral": 0,
+            "total": 0
+        }
+
+    positive = 0
+    negative = 0
+    neutral = 0
+    polarities = []
+
+    for review in reviews:
+
+        if not isinstance(review, str):
+            continue
+
+        review = review.strip()
+
+        if not review:
+            continue
+
+        try:
+
+            polarity = TextBlob(
+                review
+            ).sentiment.polarity
+
+            polarities.append(polarity)
+
+            if polarity > 0.10:
+                positive += 1
+
+            elif polarity < -0.10:
+                negative += 1
+
+            else:
+                neutral += 1
+
+        except Exception:
+
+            neutral += 1
+
+    total = (
+        positive
+        + negative
+        + neutral
+    )
+
+    if total == 0:
+
+        return {
+            "score": None,
+            "sentiment": "No usable review text",
+            "positive": 0,
+            "negative": 0,
+            "neutral": 0,
+            "total": 0
+        }
+
+    average_polarity = (
+        sum(polarities)
+        / len(polarities)
+    )
+
+    score = (
+        (average_polarity + 1)
+        / 2
+    ) * 100
+
+    score = round(score)
+
+    positive_percentage = (
+        positive / total
+    ) * 100
+
+    negative_percentage = (
+        negative / total
+    ) * 100
+
+    if positive_percentage >= 70:
+
+        sentiment = "Very Positive 😊"
+
+    elif positive_percentage >= 50:
+
+        sentiment = "Positive 👍"
+
+    elif negative_percentage >= 50:
+
+        sentiment = "Negative 👎"
+
+    else:
+
+        sentiment = "Mixed 😐"
+
+    return {
+        "score": score,
+        "sentiment": sentiment,
+        "positive": positive,
+        "negative": negative,
+        "neutral": neutral,
+        "total": total
+    }
+
+
+# ============================================================
+# SESSION STATE
+# ============================================================
 
 
 # ============================================================
