@@ -51,7 +51,7 @@ def search_product_prices(product, location):
         response = requests.get(
             url,
             params=params,
-            timeout=30
+            timeout=20
         )
 
         response.raise_for_status()
@@ -63,22 +63,37 @@ def search_product_prices(product, location):
             []
         )
 
-        # Enrich each Shopping result with the actual
-        # merchant offer link and available user reviews.
+        # --------------------------------------------------------
+        # FAST FALLBACK LINKS
+        # --------------------------------------------------------
+        # Give every result a link immediately.
+        # Google Product API enrichment is only done for
+        # the first 3 results to keep the search fast.
+
         for item in results:
 
-            item["website_link"] = None
+            item["website_link"] = (
+                item.get("product_link")
+                or item.get("link")
+            )
+
             item["reviews_results"] = []
 
-            product_id = item.get("product_id")
+        # --------------------------------------------------------
+        # ENRICH ONLY TOP 3 RESULTS
+        # --------------------------------------------------------
+
+        for item in results[:3]:
+
+            product_id = item.get(
+                "product_id"
+            )
+
             page_token = item.get(
                 "immersive_product_page_token"
             )
 
             if not product_id and not page_token:
-                item["website_link"] = item.get(
-                    "product_link"
-                )
                 continue
 
             try:
@@ -91,22 +106,38 @@ def search_product_prices(product, location):
                 }
 
                 if page_token:
-                    product_params["page_token"] = page_token
+
+                    product_params[
+                        "page_token"
+                    ] = page_token
+
                 else:
-                    product_params["product_id"] = product_id
-                    product_params["offer_view"] = "true"
+
+                    product_params[
+                        "product_id"
+                    ] = product_id
+
+                    product_params[
+                        "offer_view"
+                    ] = "true"
 
                 product_response = requests.get(
                     "https://serpapi.com/search.json",
                     params=product_params,
-                    timeout=30
+                    timeout=10
                 )
 
                 product_response.raise_for_status()
-                product_data = product_response.json()
-                product_results = product_data.get(
-                    "product_results",
-                    {}
+
+                product_data = (
+                    product_response.json()
+                )
+
+                product_results = (
+                    product_data.get(
+                        "product_results",
+                        {}
+                    )
                 )
 
                 stores = product_results.get(
@@ -131,15 +162,23 @@ def search_product_prices(product, location):
                         source_name
                         and store_name
                         and (
-                            source_name in store_name
-                            or store_name in source_name
+                            source_name
+                            in store_name
+                            or
+                            store_name
+                            in source_name
                         )
                     ):
+
                         matching_store = store
                         break
 
-                # Otherwise choose the store with the closest price.
-                if matching_store is None and stores:
+                # Otherwise choose the store
+                # with the closest price.
+                if (
+                    matching_store is None
+                    and stores
+                ):
 
                     target_price = item.get(
                         "extracted_price"
@@ -154,14 +193,17 @@ def search_product_prices(product, location):
 
                         for store in stores:
 
-                            store_price = store.get(
-                                "extracted_price"
+                            store_price = (
+                                store.get(
+                                    "extracted_price"
+                                )
                             )
 
                             if isinstance(
                                 store_price,
                                 (int, float)
                             ):
+
                                 priced_stores.append(
                                     (
                                         abs(
@@ -177,37 +219,47 @@ def search_product_prices(product, location):
                             priced_stores.sort(
                                 key=lambda x: x[0]
                             )
+
                             matching_store = (
                                 priced_stores[0][1]
                             )
 
                 if matching_store:
-                    item["website_link"] = (
-                        matching_store.get("link")
+
+                    merchant_link = (
+                        matching_store.get(
+                            "link"
+                        )
                     )
 
-                # Fallback to Google's Shopping product page.
-                if not item.get("website_link"):
-                    item["website_link"] = (
-                        item.get("product_link")
-                    )
+                    if merchant_link:
 
-                user_reviews = product_results.get(
-                    "user_reviews",
-                    []
+                        item[
+                            "website_link"
+                        ] = merchant_link
+
+                # Get actual user review text
+                # when the Product API provides it.
+                user_reviews = (
+                    product_results.get(
+                        "user_reviews",
+                        []
+                    )
                 )
 
                 if isinstance(
                     user_reviews,
                     list
                 ):
-                    item["reviews_results"] = user_reviews
+
+                    item[
+                        "reviews_results"
+                    ] = user_reviews
 
             except Exception:
-
-                item["website_link"] = (
-                    item.get("product_link")
-                )
+                # Keep the already available
+                # Shopping product link.
+                pass
 
         return results
 
@@ -1603,8 +1655,10 @@ if priced_results:
                 + "."
             )
 
-        best_item_link = best_item.get(
-            "link"
+        best_item_link = (
+            best_item.get("website_link")
+            or best_item.get("product_link")
+            or best_item.get("link")
         )
 
         if best_item_link:
