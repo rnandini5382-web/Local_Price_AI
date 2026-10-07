@@ -221,7 +221,53 @@ if results:
             (int, float)
         )
     ]
+    # =====================================================
+    # SAVINGS ANALYSIS
+    # =====================================================
 
+    if len(priced_results) >= 2:
+
+        prices = [
+            item["extracted_price"]
+            for item in priced_results
+        ]
+
+        lowest_price = min(prices)
+        highest_price = max(prices)
+
+        savings = highest_price - lowest_price
+
+        st.subheader(
+            "💰 Savings Analysis"
+        )
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "💵 Lowest Price",
+                f"₹{lowest_price:,.0f}"
+            )
+
+        with col2:
+            st.metric(
+                "💸 Highest Price",
+                f"₹{highest_price:,.0f}"
+            )
+
+        with col3:
+            st.metric(
+                "🎯 Potential Savings",
+                f"₹{savings:,.0f}"
+            )
+
+        if savings > 0:
+
+            st.success(
+                f"🤖 You could save "
+                f"₹{savings:,.0f} by choosing "
+                f"the lowest-priced option."
+            )
 
     # =====================================================
     # BEST ONLINE PRICE
