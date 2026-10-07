@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import math
+import re
 from textblob import TextBlob
 
 
@@ -276,6 +277,7 @@ def search_product_prices(product, location):
 # GET LOCATION COORDINATES
 # ============================================================
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def get_location_coordinates(location):
 
     url = "https://serpapi.com/locations.json"
@@ -290,7 +292,7 @@ def get_location_coordinates(location):
         response = requests.get(
             url,
             params=params,
-            timeout=30
+            timeout=8
         )
 
         response.raise_for_status()
@@ -403,7 +405,7 @@ def search_local_stores(
         response = requests.get(
             url,
             params=params,
-            timeout=30
+            timeout=15
         )
 
         response.raise_for_status()
@@ -977,5 +979,4 @@ if st.button(
                     )
 
             # Keep original results if filter
-            # would otherwise remove everything
-         
+   
