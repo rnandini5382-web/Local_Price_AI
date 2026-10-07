@@ -541,823 +541,28 @@ def calculate_deal_score(item):
         2
     )
 
-
-# ============================================================
+# ========================================================
 # AI CUSTOMER REVIEW ANALYSIS
-# ============================================================
-
-def analyze_customer_reviews(reviews):
-
-    if not reviews:
-
-        return {
-            "score": None,
-            "sentiment": "No review text available",
-            "positive": 0,
-            "negative": 0,
-            "neutral": 0,
-            "total": 0
-        }
-
-    positive = 0
-    negative = 0
-    neutral = 0
-
-    polarities = []
-
-    for review in reviews:
-
-        if not isinstance(
-            review,
-            str
-        ):
-            continue
-
-        review = review.strip()
-
-        if not review:
-            continue
-
-        try:
-
-            polarity = TextBlob(
-                review
-            ).sentiment.polarity
-
-            polarities.append(
-                polarity
-            )
-
-            if polarity > 0.10:
-
-                positive += 1
-
-            elif polarity < -0.10:
-
-                negative += 1
-
-            else:
-
-                neutral += 1
-
-        except Exception:
-
-            neutral += 1
-
-    total = (
-        positive
-        +
-        negative
-        +
-        neutral
-    )
-
-    if total == 0:
-
-        return {
-            "score": None,
-            "sentiment": "No usable review text",
-            "positive": 0,
-            "negative": 0,
-            "neutral": 0,
-            "total": 0
-        }
-
-    average_polarity = (
-        sum(polarities)
-        /
-        len(polarities)
-    )
-
-    score = round(
-        (
-            (average_polarity + 1)
-            /
-            2
-        )
-        * 100
-    )
-
-    positive_percentage = (
-        positive / total
-    ) * 100
-
-    negative_percentage = (
-        negative / total
-    ) * 100
-
-    if positive_percentage >= 70:
-
-        sentiment = (
-            "Very Positive 😊"
-        )
-
-    elif positive_percentage >= 50:
-
-        sentiment = (
-            "Positive 👍"
-        )
-
-    elif negative_percentage >= 50:
-
-        sentiment = (
-            "Negative 👎"
-        )
-
-    else:
-
-        sentiment = (
-            "Mixed 😐"
-        )
-
-    return {
-        "score": score,
-        "sentiment": sentiment,
-        "positive": positive,
-        "negative": negative,
-        "neutral": neutral,
-        "total": total
-    }
-
-
-# ============================================================
-# SESSION STATE
-# ============================================================
-
-if "priced_results" not in st.session_state:
-
-    st.session_state.priced_results = []
-
-
-if "stores" not in st.session_state:
-
-    st.session_state.stores = []
-
-
-# ============================================================
-# TITLE
-# ============================================================
-
-st.title(
-    "🛍️ Local Price Finder AI"
-)
-
-st.write(
-    "Find the best prices, nearby stores, "
-    "customer satisfaction and smart deals "
-    "using SerpApi."
-)
-
-
-# ============================================================
-# INPUT SECTION
-# ============================================================
-
-st.subheader(
-    "🔎 Search Product"
-)
-
-product = st.text_input(
-    "🛍️ Product Name",
-    placeholder="Example: iPhone 16"
-)
-
-location = st.text_input(
-    "📍 Your Location",
-    placeholder="Example: Hyderabad"
-)
-
-
-col1, col2 = st.columns(2)
-
-
-with col1:
-
-    budget = st.number_input(
-        "💰 Maximum Budget (₹)",
-        min_value=0,
-        value=0,
-        step=1000
-    )
-
-
-with col2:
-
-    radius = st.selectbox(
-        "📍 Store Search Radius",
-        [
-            "5 km",
-            "10 km",
-            "25 km",
-            "50 km"
-        ]
-    )
-
-    radius_km = int(
-        radius.replace(
-            " km",
-            ""
-        )
-    )
-
-
-condition = st.selectbox(
-    "📦 Product Condition",
-    [
-        "Any",
-        "New",
-        "Used",
-        "Refurbished"
-    ]
-)
-
-
-priority = st.selectbox(
-    "🎯 Priority",
-    [
-        "Lowest Price",
-        "Best Overall Deal",
-        "Nearest Store",
-        "Best Rating"
-    ]
-)
-
-
-# ============================================================
-# NEARBY LOCAL STORES
-# ============================================================
+# ========================================================
 
 st.divider()
 
 st.subheader(
-    "📍 Nearby Local Stores"
+    "⭐ AI Customer Review Analysis"
 )
-
-
-if st.button(
-    "📍 Find Nearby Stores",
-    use_container_width=True
-):
-
-    if product and location:
-
-        with st.spinner(
-            "📍 Finding nearby stores..."
-        ):
-
-            stores = search_local_stores(
-                product,
-                location,
-                radius_km
-            )
-
-        st.session_state.stores = stores
-
-        if stores:
-
-            st.success(
-                f"Found {len(stores)} "
-                f"store(s) within "
-                f"{radius_km} km."
-            )
-
-        else:
-
-            st.warning(
-                f"⚠️ No stores found within "
-                f"{radius_km} km."
-            )
-
-    else:
-
-        st.warning(
-            "⚠️ Please enter both product "
-            "and location."
-        )
-
-
-# ============================================================
-# DISPLAY NEARBY STORES
-# ============================================================
-
-if st.session_state.stores:
-
-    for store in (
-        st.session_state.stores
-    ):
-
-        st.markdown("---")
-
-        st.subheader(
-            f"🏪 {store.get('title', 'Store')}"
-        )
-
-        address = store.get(
-            "address"
-        )
-
-        if address:
-
-            st.write(
-                f"📍 **Address:** {address}"
-            )
-
-        rating = store.get(
-            "rating"
-        )
-
-        if rating:
-
-            st.write(
-                f"⭐ **Rating:** {rating}"
-            )
-
-        reviews = store.get(
-            "reviews"
-        )
-
-        if reviews:
-
-            st.write(
-                f"💬 **Reviews:** {reviews}"
-            )
-
-        phone = store.get(
-            "phone"
-        )
-
-        if phone:
-
-            st.write(
-                f"📞 **Phone:** {phone}"
-            )
-
-        distance = store.get(
-            "distance_km"
-        )
-
-        if distance is not None:
-
-            st.write(
-                f"📏 **Distance:** "
-                f"{distance} km"
-            )
-
-        place_id = store.get(
-            "place_id"
-        )
-
-        if place_id:
-
-            maps_url = (
-                "https://www.google.com/maps/"
-                f"search/?api=1&query="
-                f"{store.get('title', '')}"
-                f"&query_place_id="
-                f"{place_id}"
-            )
-
-        else:
-
-            maps_url = (
-                "https://www.google.com/maps/"
-                "search/?api=1&query="
-                f"{store.get('title', '')}"
-            )
-
-        st.link_button(
-            "🗺️ Get Directions",
-            maps_url
-        )
-
-
-# ============================================================
-# FIND BEST PRICES
-# ============================================================
-
-st.divider()
-
-if st.button(
-    "🔎 Find Best Prices",
-    use_container_width=True
-):
-
-    if product and location:
-
-        with st.spinner(
-            "🔎 Searching prices..."
-        ):
-
-            results = search_product_prices(
-                product,
-                location
-            )
-
-        # ----------------------------------------------------
-        # CONDITION FILTER
-        # ----------------------------------------------------
-
-        if condition != "Any":
-
-            filtered_results = []
-
-            for item in results:
-
-                title = str(
-                    item.get(
-                        "title",
-                        ""
-                    )
-                ).lower()
-
-                if condition.lower() in title:
-
-                    filtered_results.append(
-                        item
-                    )
-
-            # Keep original results if filter
-            # would otherwise remove everything
-            if filtered_results:
-
-                results = filtered_results
-
-
-        # ----------------------------------------------------
-        # BUDGET FILTER
-        # ----------------------------------------------------
-
-        if budget > 0:
-
-            budget_results = []
-
-            for item in results:
-
-                price = item.get(
-                    "extracted_price"
-                )
-
-                try:
-
-                    price = float(price)
-
-                    if price <= budget:
-
-                        budget_results.append(
-                            item
-                        )
-
-                except Exception:
-
-                    pass
-
-            if budget_results:
-
-                results = budget_results
-
-
-        # ----------------------------------------------------
-        # DEAL SCORE
-        # ----------------------------------------------------
-
-        for item in results:
-
-            item["deal_score"] = (
-                calculate_deal_score(item)
-            )
-
-
-        # ----------------------------------------------------
-        # PRIORITY SORTING
-        # ----------------------------------------------------
-
-        if priority == "Lowest Price":
-
-            results.sort(
-                key=lambda x:
-                x.get(
-                    "extracted_price",
-                    float("inf")
-                )
-                if isinstance(
-                    x.get("extracted_price"),
-                    (int, float)
-                )
-                else float("inf")
-            )
-
-        elif priority == "Best Overall Deal":
-
-            results.sort(
-                key=lambda x:
-                x.get(
-                    "deal_score",
-                    0
-                ),
-                reverse=True
-            )
-
-        elif priority == "Best Rating":
-
-            results.sort(
-                key=lambda x:
-                x.get(
-                    "rating",
-                    0
-                )
-                if isinstance(
-                    x.get("rating"),
-                    (int, float)
-                )
-                else 0,
-                reverse=True
-            )
-
-        elif priority == "Nearest Store":
-
-            # Online shopping results don't
-            # necessarily have distance.
-            # Keep results in SerpApi order.
-            pass
-
-
-        st.session_state.priced_results = (
-            results
-        )
-
-    else:
-
-        st.warning(
-            "⚠️ Please enter both product "
-            "and location."
-        )
-
-
-# ============================================================
-# PRICE RESULTS
-# ============================================================
-
-priced_results = (
-    st.session_state.priced_results
-)
-
 
 if priced_results:
 
-    st.divider()
-
-    st.subheader(
-        "💰 Best Price Results"
-    )
-
-    # --------------------------------------------------------
-    # DISPLAY PRODUCTS
-    # --------------------------------------------------------
-
-    for item in priced_results:
-
-        st.markdown("---")
-
-        title = item.get(
-            "title",
-            "Product"
-        )
-
-        st.subheader(
-            f"🛍️ {title}"
-        )
-
-        source = item.get(
-            "source"
-        )
-
-        if source:
-
-            st.write(
-                f"🏪 **Store:** {source}"
-            )
-
-        price = item.get(
-            "price"
-        )
-
-        extracted_price = item.get(
-            "extracted_price"
-        )
-
-        if price:
-
-            st.write(
-                f"💰 **Price:** {price}"
-            )
-
-        elif extracted_price is not None:
-
-            st.write(
-                f"💰 **Price:** "
-                f"₹{extracted_price:,.0f}"
-            )
-
-        rating = item.get(
-            "rating"
-        )
-
-        if rating:
-
-            st.write(
-                f"⭐ **Rating:** {rating}/5"
-            )
-
-        review_count = item.get(
-            "reviews"
-        )
-
-        if review_count:
-
-            st.write(
-                f"💬 **Reviews:** "
-                f"{review_count}"
-            )
-
-        deal_score = item.get(
-            "deal_score"
-        )
-
-        if deal_score:
-
-            st.write(
-                f"🎯 **Deal Score:** "
-                f"{deal_score}/100"
-            )
-
-        # ----------------------------------------------------
-        # VISIT WEBSITE BUTTON
-        # ----------------------------------------------------
-
-        product_link = (
-            item.get("website_link")
-            or item.get("product_link")
-            or item.get("link")
-        )
-
-        if product_link:
-
-            st.link_button(
-                "🌐 Visit Website",
-                product_link
-            )
-
-        else:
-
-            st.info(
-                "🌐 Website link is not "
-                "available for this result."
-            )
-
-
-    # ========================================================
-    # BEST ONLINE PRICE
-    # ========================================================
-
-    st.divider()
-
-    st.subheader(
-        "🏆 Best Online Price"
-    )
-
-    valid_prices = []
-
-    for item in priced_results:
-
-        price = item.get(
-            "extracted_price"
-        )
-
-        try:
-
-            price = float(price)
-
-            valid_prices.append(
-                (price, item)
-            )
-
-        except Exception:
-
-            pass
-
-
-    if valid_prices:
-
-        valid_prices.sort(
-            key=lambda x: x[0]
-        )
-
-        best_price, best_item = (
-            valid_prices[0]
-        )
-
-        st.success(
-            f"🏆 Best Price: "
-            f"₹{best_price:,.0f}"
-        )
-        best_source = best_item.get("source")
-
-        if best_source:
-            st.write(
-                f"🏪 **Available at:** {best_source}"
-            )
-
-        best_link = (
-            best_item.get("website_link")
-            or best_item.get("product_link")
-            or best_item.get("link")
-        )
-
-        if best_link:
-            st.link_button(
-                "🌐 Visit Website",
-                best_link
-            )
-        else:
-            st.info(
-                "🌐 Website link is not available."
-            )
-
-    # ========================================================
-    # SAVINGS ANALYSIS
-    # ========================================================
-
-    st.divider()
-
-    st.subheader(
-        "💸 Savings Analysis"
-    )
-
-    all_prices = [
-        price
-        for price, item
-        in valid_prices
-    ]
-
-    if all_prices:
-
-        lowest_price = min(
-            all_prices
-        )
-
-        highest_price = max(
-            all_prices
-        )
-
-        potential_savings = (
-            highest_price
-            -
-            lowest_price
-        )
-
-        col1, col2, col3 = (
-            st.columns(3)
-        )
-
-        with col1:
-
-            st.metric(
-                "Lowest Price",
-                f"₹{lowest_price:,.0f}"
-            )
-
-        with col2:
-
-            st.metric(
-                "Highest Price",
-                f"₹{highest_price:,.0f}"
-            )
-
-        with col3:
-
-            st.metric(
-                "Potential Savings",
-                f"₹{potential_savings:,.0f}"
-            )
-
-
-    # ========================================================
-    # ========================================================
-    # AI CUSTOMER REVIEW ANALYSIS
-    # ========================================================
-
-    st.divider()
-
-    st.subheader(
-        "⭐ AI Customer Review Analysis"
-    )
-
     for item in priced_results:
 
         title = item.get(
             "title",
             "Product"
         )
+
+        # ------------------------------------------------
+        # GET RATING
+        # ------------------------------------------------
 
         rating = item.get(
             "rating"
@@ -1366,14 +571,28 @@ if priced_results:
         review_count = item.get(
             "reviews"
         )
+
+        # ------------------------------------------------
+        # TRY ALTERNATIVE RATING FIELDS
+        # ------------------------------------------------
+
+        if rating is None:
+            rating = item.get(
+                "rating_score"
+            )
+
+        if review_count is None:
+            review_count = item.get(
+                "reviews_count"
+            )
 
         st.markdown(
             f"### 🛍️ {title}"
         )
 
-        # ----------------------------------------------------
+        # ------------------------------------------------
         # CHECK FOR ACTUAL REVIEW TEXT
-        # ----------------------------------------------------
+        # ------------------------------------------------
 
         reviews_results = item.get(
             "reviews_results",
@@ -1396,13 +615,17 @@ if priced_results:
 
                     text = (
                         review.get("text")
-                        or review.get("content")
-                        or review.get("snippet")
+                        or
+                        review.get("content")
+                        or
+                        review.get("snippet")
+                        or
+                        review.get("review")
                     )
 
                     if text:
                         review_texts.append(
-                            text
+                            str(text)
                         )
 
                 elif isinstance(
@@ -1410,18 +633,21 @@ if priced_results:
                     str
                 ):
 
-                    review_texts.append(
-                        review
-                    )
+                    if review.strip():
+                        review_texts.append(
+                            review.strip()
+                        )
 
-        # ----------------------------------------------------
-        # AI REVIEW TEXT ANALYSIS
-        # ----------------------------------------------------
+        # =================================================
+        # LEVEL 1 — ACTUAL CUSTOMER REVIEWS
+        # =================================================
 
         if review_texts:
 
-            analysis = analyze_customer_reviews(
-                review_texts
+            analysis = (
+                analyze_customer_reviews(
+                    review_texts
+                )
             )
 
             if analysis["score"] is not None:
@@ -1429,12 +655,14 @@ if priced_results:
                 col1, col2 = st.columns(2)
 
                 with col1:
+
                     st.metric(
                         "🤖 AI Review Score",
                         f'{analysis["score"]}/100'
                     )
 
                 with col2:
+
                     st.metric(
                         "📊 Reviews Analyzed",
                         analysis["total"]
@@ -1445,109 +673,192 @@ if priced_results:
                     f'{analysis["sentiment"]}'
                 )
 
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3 = (
+                    st.columns(3)
+                )
 
                 with col1:
+
                     st.metric(
                         "😊 Positive",
                         analysis["positive"]
                     )
 
                 with col2:
+
                     st.metric(
                         "😐 Neutral",
                         analysis["neutral"]
                     )
 
                 with col3:
+
                     st.metric(
                         "👎 Negative",
                         analysis["negative"]
                     )
 
-        # ----------------------------------------------------
-        # RATING FALLBACK
-        # ----------------------------------------------------
+        # =================================================
+        # LEVEL 2 — RATING BASED AI ANALYSIS
+        # =================================================
+
+        elif rating is not None:
+
+            try:
+
+                rating_value = float(
+                    rating
+                )
+
+                # Keep rating within valid range
+                rating_value = max(
+                    0,
+                    min(
+                        rating_value,
+                        5
+                    )
+                )
+
+                satisfaction_score = round(
+                    (
+                        rating_value
+                        /
+                        5
+                    )
+                    * 100
+                )
+
+                col1, col2 = (
+                    st.columns(2)
+                )
+
+                with col1:
+
+                    st.metric(
+                        "⭐ Customer Rating",
+                        f"{rating_value:.1f}/5"
+                    )
+
+                with col2:
+
+                    st.metric(
+                        "🤖 AI Satisfaction Score",
+                        f"{satisfaction_score}/100"
+                    )
+
+                if review_count:
+
+                    st.write(
+                        f"💬 **Based on:** "
+                        f"{review_count} "
+                        f"customer reviews"
+                    )
+
+                # -----------------------------------------
+                # SENTIMENT
+                # -----------------------------------------
+
+                if rating_value >= 4.5:
+
+                    sentiment = (
+                        "Very Positive 😊"
+                    )
+
+                    message = (
+                        "Customers appear highly "
+                        "satisfied with this product."
+                    )
+
+                    st.success(
+                        f"😊 **{sentiment}** — "
+                        f"{message}"
+                    )
+
+                elif rating_value >= 4.0:
+
+                    sentiment = (
+                        "Positive 👍"
+                    )
+
+                    message = (
+                        "Customers generally "
+                        "appear satisfied with this product."
+                    )
+
+                    st.success(
+                        f"👍 **{sentiment}** — "
+                        f"{message}"
+                    )
+
+                elif rating_value >= 3.0:
+
+                    sentiment = (
+                        "Mixed 😐"
+                    )
+
+                    message = (
+                        "Customer satisfaction "
+                        "appears moderate."
+                    )
+
+                    st.warning(
+                        f"😐 **{sentiment}** — "
+                        f"{message}"
+                    )
+
+                else:
+
+                    sentiment = (
+                        "Negative 👎"
+                    )
+
+                    message = (
+                        "The available rating "
+                        "indicates lower customer satisfaction."
+                    )
+
+                    st.error(
+                        f"👎 **{sentiment}** — "
+                        f"{message}"
+                    )
+
+                st.info(
+                    "🤖 AI Insight: "
+                    "The satisfaction score is calculated "
+                    "from the available customer rating. "
+                    "Individual review text was not returned "
+                    "by the current product data source."
+                )
+
+            except Exception:
+
+                st.info(
+                    "ℹ️ Customer rating data "
+                    "could not be analyzed."
+                )
+
+        # =================================================
+        # LEVEL 3 — NO REVIEW DATA
+        # =================================================
 
         else:
 
-            if rating is not None:
+            st.info(
+                "ℹ️ No customer rating or review "
+                "information was returned for this product."
+            )
 
-                try:
+else:
 
-                    rating_value = float(
-                        rating
-                    )
+    st.info(
+        "🔎 Search for a product first to see "
+        "customer review analysis."
+    )
 
-                    satisfaction_score = round(
-                        (rating_value / 5) * 100
-                    )
 
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        st.metric(
-                            "⭐ Customer Rating",
-                            f"{rating_value}/5"
-                        )
-
-                    with col2:
-                        st.metric(
-                            "🤖 Satisfaction Score",
-                            f"{satisfaction_score}/100"
-                        )
-
-                    if review_count:
-                        st.write(
-                            f"💬 **Based on:** "
-                            f"{review_count} customer reviews"
-                        )
-
-                    if rating_value >= 4.5:
-
-                        st.success(
-                            "😊 Excellent customer satisfaction"
-                        )
-
-                    elif rating_value >= 4.0:
-
-                        st.success(
-                            "👍 Very good customer satisfaction"
-                        )
-
-                    elif rating_value >= 3.0:
-
-                        st.warning(
-                            "😐 Mixed customer satisfaction"
-                        )
-
-                    else:
-
-                        st.error(
-                            "👎 Low customer satisfaction"
-                        )
-
-                    st.caption(
-                        "ℹ️ Individual review text was not "
-                        "available from the current Google "
-                        "Shopping result. The satisfaction "
-                        "score is based on the available "
-                        "customer rating."
-                    )
-
-                except Exception:
-
-                    st.info(
-                        "ℹ️ Customer review information "
-                        "is unavailable."
-                    )
-
-            else:
-
-                st.info(
-                    "ℹ️ No customer rating information "
-                    "was returned for this product."
-                )
+# ========================================================
+# SMART DEAL RECOMMENDATION
+# ========================================================
 
     # ========================================================
     # SMART DEAL RECOMMENDATION
