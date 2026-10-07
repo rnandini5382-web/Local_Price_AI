@@ -534,17 +534,13 @@ if st.session_state.local_stores:
             "Local Store"
         )
 
-        address = store.get(
+                address = store.get(
             "address",
             "Address unavailable"
-distance = store.get(
-    "distance_km"
-)
-if distance is not None:
+        )
 
-    st.markdown(
-        f"📏 **Distance:** {distance} km away"
-    )
+        distance = store.get(
+            "distance_km"
         )
 
         rating = store.get(
@@ -561,6 +557,12 @@ if distance is not None:
             "phone",
             "Not available"
         )
+
+        if distance is not None:
+
+            st.markdown(
+                f"📏 **Distance:** {distance} km away"
+            )
 
         website = store.get(
             "website",
