@@ -34,28 +34,57 @@ if st.button("🔎 Find Best Prices"):
         with st.spinner("Searching for the best prices..."):
             results = search_products(product, location)
 
-        if results:
-            st.success(f"Found {len(results)} results! 🎉")
+        
+            if results:
+    st.success(f"Found {len(results)} results! 🎉")
 
-            st.subheader("💰 Price Comparison")
+    # Get products that have a usable numeric price
+    priced_results = [
+        item for item in results
+        if isinstance(item.get("extracted_price"), (int, float))
+    ]
 
-            for item in results:
-                title = item.get("title", "Unknown Product")
-                price = item.get("price", "Not available")
-                source = item.get("source", "Unknown Store")
-                link = item.get("link", "")
+    if priced_results:
+        # Find the cheapest product
+        best_deal = min(
+            priced_results,
+            key=lambda x: x["extracted_price"]
+        )
 
-                st.markdown(f"### 🛍️ {title}")
-                st.write(f"💰 **Price:** {price}")
-                st.write(f"🏪 **Store:** {source}")
+        st.subheader("🏆 Best Price Found")
 
-                if link:
-                    st.link_button("🛒 View Product", link)
+        st.success(
+            f"💰 {best_deal.get('price', 'Price unavailable')} "
+            f"at 🏪 {best_deal.get('source', 'Unknown Store')}"
+        )
 
-                st.divider()
+        st.write(
+            f"**Product:** {best_deal.get('title', 'Unknown Product')}"
+        )
 
-        else:
-            st.warning("No shopping results found.")
+        best_link = best_deal.get("link") or best_deal.get("product_link")
 
-    else:
-        st.error("Please enter both product and location.")
+        if best_link:
+            st.link_button("🛒 View Best Deal", best_link)
+
+    st.divider()
+
+    st.subheader("📊 All Price Comparisons")
+
+    for item in priced_results:
+        title = item.get("title", "Unknown Product")
+        price = item.get("price", "Not available")
+        source = item.get("source", "Unknown Store")
+        link = item.get("link") or item.get("product_link")
+
+        st.markdown(f"### 🛍️ {title}")
+        st.write(f"💰 **Price:** {price}")
+        st.write(f"🏪 **Store:** {source}")
+
+        if link:
+            st.link_button("🛒 View Product", link)
+
+        st.divider()
+
+else:
+    st.warning("No shopping results found.")
