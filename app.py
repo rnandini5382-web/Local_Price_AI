@@ -1083,5 +1083,5 @@ if priced_results:
                     text = (
                         review.get("snippet")
                         or review.get("text")
-                        or review.get("content")
+                        or review.get("content"))
           
