@@ -29,8 +29,7 @@ def search_local_stores(product, location):
 
     params = {
         "engine": "google_maps",
-        "q": f"{product} stores",
-        "location": location,
+        "q": f"{product} stores near {location}",
         "type": "search",
         "api_key": st.secrets["SERPAPI_API_KEY"],
         "hl": "en",
@@ -39,6 +38,12 @@ def search_local_stores(product, location):
 
     search = GoogleSearch(params)
     results = search.get_dict()
+
+    if "error" in results:
+        st.error(
+            f"SerpApi error: {results['error']}"
+        )
+        return []
 
     return results.get("local_results", [])
 
