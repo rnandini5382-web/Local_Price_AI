@@ -2,10 +2,29 @@ import streamlit as st
 from serpapi import GoogleSearch
 
 
-# -----------------------------
-# SerpApi Product Search
-# -----------------------------
+# --------------------------------
+# Search Online Products
+# --------------------------------
 def search_products(product, location):
+
+    params = {
+        "engine": "google_shopping",
+        "q": product,
+        "location": location,
+        "api_key": st.secrets["SERPAPI_API_KEY"],
+        "hl": "en",
+        "gl": "in"
+    }
+
+    search = GoogleSearch(params)
+    results = search.get_dict()
+
+    return results.get("shopping_results", [])
+
+
+# --------------------------------
+# Search Nearby Local Stores
+# --------------------------------
 def search_local_stores(product, location):
 
     params = {
@@ -23,34 +42,20 @@ def search_local_stores(product, location):
 
     return results.get("local_results", [])
 
-    params = {
-        "engine": "google_shopping",
-        "q": product,
-        "location": location,
-        "api_key": st.secrets["SERPAPI_API_KEY"],
-        "hl": "en",
-        "gl": "in"
-    }
 
-    search = GoogleSearch(params)
-    results = search.get_dict()
-
-    return results.get("shopping_results", [])
-
-
-# -----------------------------
-# App Title
-# -----------------------------
+# --------------------------------
+# App
+# --------------------------------
 st.title("🛍️ Local Price Finder AI")
 
 st.write(
-    "Find and compare product prices from online shopping results."
+    "Compare online prices and discover nearby local stores."
 )
 
 
-# -----------------------------
-# User Inputs
-# -----------------------------
+# --------------------------------
+# Inputs
+# --------------------------------
 product = st.text_input(
     "What product are you looking for?",
     placeholder="Example: iPhone 15 128GB"
@@ -62,9 +67,9 @@ location = st.text_input(
 )
 
 
-# -----------------------------
-# Search Button
-# -----------------------------
+# =================================
+# ONLINE PRICE SEARCH
+# =================================
 if st.button("🔎 Find Best Prices"):
 
     if product and location:
@@ -76,17 +81,13 @@ if st.button("🔎 Find Best Prices"):
                 location
             )
 
-
-        # -----------------------------
-        # Results
-        # -----------------------------
         if results:
 
             st.success(
-                f"Found {len(results)} results! 🎉"
+                f"Found {len(results)} online results! 🎉"
             )
 
-            # Find results that have numerical prices
+            # Products with numerical prices
             priced_results = [
                 item
                 for item in results
@@ -96,10 +97,9 @@ if st.button("🔎 Find Best Prices"):
                 )
             ]
 
-
-            # -----------------------------
+            # -------------------------
             # Best Deal
-            # -----------------------------
+            # -------------------------
             if priced_results:
 
                 best_deal = min(
@@ -107,7 +107,9 @@ if st.button("🔎 Find Best Prices"):
                     key=lambda x: x["extracted_price"]
                 )
 
-                st.subheader("🏆 Best Price Found")
+                st.subheader(
+                    "🏆 Best Online Price"
+                )
 
                 st.success(
                     f"💰 {best_deal.get('price', 'Price unavailable')}"
@@ -129,98 +131,20 @@ if st.button("🔎 Find Best Prices"):
                 )
 
                 if best_link:
+
                     st.link_button(
                         "🛒 View Best Deal",
                         best_link
                     )
-st.divider()
 
-st.subheader("📍 Nearby Local Stores")
-
-if st.button("📍 Find Nearby Stores"):
-
-    if product and location:
-
-        with st.spinner("📍 Finding nearby stores..."):
-
-            stores = search_local_stores(
-                product,
-                location
-            )
-
-        if stores:
-
-            st.success(
-                f"Found {len(stores)} local stores! 🎉"
-            )
-
-            for store in stores:
-
-                store_name = store.get(
-                    "title",
-                    "Unknown Store"
-                )
-
-                rating = store.get(
-                    "rating",
-                    "Not available"
-                )
-
-                reviews = store.get(
-                    "reviews",
-                    "Not available"
-                )
-
-                address = store.get(
-                    "address",
-                    "Address unavailable"
-                )
-
-                store_price = store.get(
-                    "price",
-                    "Price level unavailable"
-                )
-
-                st.markdown(
-                    f"### 🏪 {store_name}"
-                )
-
-                st.write(
-                    f"⭐ **Rating:** {rating}"
-                )
-
-                st.write(
-                    f"💬 **Reviews:** {reviews}"
-                )
-
-                st.write(
-                    f"📍 **Address:** {address}"
-                )
-
-                st.write(
-                    f"💰 **Price level:** {store_price}"
-                )
-
-                st.divider()
-
-        else:
-
-            st.warning(
-                "No nearby stores found."
-            )
-
-    else:
-
-        st.error(
-            "Please enter product and location first."
-        )
-
-            # -----------------------------
-            # All Results
-            # -----------------------------
+            # -------------------------
+            # All Online Results
+            # -------------------------
             st.divider()
 
-            st.subheader("📊 Price Comparison")
+            st.subheader(
+                "📊 Online Price Comparison"
+            )
 
             for item in results:
 
@@ -257,6 +181,7 @@ if st.button("📍 Find Nearby Stores"):
                 )
 
                 if link:
+
                     st.link_button(
                         "🛒 View Product",
                         link
@@ -264,16 +189,77 @@ if st.button("📍 Find Nearby Stores"):
 
                 st.divider()
 
-
         else:
 
             st.warning(
-                "No shopping results found."
+                "No online shopping results found."
             )
-
 
     else:
 
         st.error(
             "Please enter both product and location."
         )
+
+
+# =================================
+# LOCAL STORE SEARCH
+# =================================
+
+st.divider()
+
+st.subheader(
+    "📍 Nearby Local Stores"
+)
+
+
+if st.button("📍 Find Nearby Stores"):
+
+    if product and location:
+
+        with st.spinner(
+            "📍 Finding nearby stores..."
+        ):
+
+            stores = search_local_stores(
+                product,
+                location
+            )
+
+        if stores:
+
+            st.success(
+                f"Found {len(stores)} local stores! 🎉"
+            )
+
+            for store in stores:
+
+                store_name = store.get(
+                    "title",
+                    "Unknown Store"
+                )
+
+                rating = store.get(
+                    "rating",
+                    "Not available"
+                )
+
+                reviews = store.get(
+                    "reviews",
+                    "Not available"
+                )
+
+                address = store.get(
+                    "address",
+                    "Address unavailable"
+                )
+
+                st.markdown(
+                    f"### 🏪 {store_name}"
+                )
+
+                st.write(
+                    f"⭐ **Rating:** {rating}"
+                )
+
+                st
