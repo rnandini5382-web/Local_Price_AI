@@ -1,12 +1,11 @@
 import streamlit as st
 import requests
 import math
-from urllib.parse import quote
 from textblob import TextBlob
 
 
 # ============================================================
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
@@ -17,42 +16,21 @@ st.set_page_config(
 
 
 # ============================================================
-# SERPAPI KEY
+# SERPAPI API KEY
 # ============================================================
 
 try:
     SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
 except Exception:
-    SERPAPI_API_KEY = ""
-
-
-# ============================================================
-# TITLE
-# ============================================================
-
-st.title("🛍️ Local Price Finder AI")
-
-st.markdown(
-    """
-    ### 🔎 Find the best deals near you
-
-    Compare prices, discover nearby stores, analyze customer
-    feedback, and get an intelligent deal recommendation.
-    """
-)
-
-
-if not SERPAPI_API_KEY:
-
     st.error(
-        "❌ SERPAPI_API_KEY is missing from Streamlit Secrets."
+        "❌ SERPAPI_API_KEY is missing. "
+        "Please add it to Streamlit Secrets."
     )
-
     st.stop()
 
 
 # ============================================================
-# GOOGLE SHOPPING SEARCH
+# SEARCH PRODUCT PRICES
 # ============================================================
 
 def search_product_prices(product, location):
@@ -76,21 +54,9 @@ def search_product_prices(product, location):
             timeout=30
         )
 
+        response.raise_for_status()
+
         data = response.json()
-
-        if response.status_code != 200:
-
-            st.error(
-                "❌ SerpApi error: "
-                + str(
-                    data.get(
-                        "error",
-                        "Unknown error"
-                    )
-                )
-            )
-
-            return []
 
         return data.get(
             "shopping_results",
@@ -124,38 +90,31 @@ def get_location_coordinates(location):
         response = requests.get(
             url,
             params=params,
-            timeout=20
+            timeout=30
         )
 
         response.raise_for_status()
 
-        locations = response.json()
+        data = response.json()
 
-        if not locations:
-
+        if not data:
             return None
 
-        for loc in locations:
+        location_data = data[0]
 
-            gps = loc.get("gps")
+        gps = location_data.get("gps")
 
-            if gps and len(gps) >= 2:
+        if gps and len(gps) >= 2:
 
-                longitude = float(
-                    gps[0]
-                )
+            longitude = float(gps[0])
+            latitude = float(gps[1])
 
-                latitude = float(
-                    gps[1]
-                )
-
-                return latitude, longitude
-
-        return None
+            return latitude, longitude
 
     except Exception:
+        pass
 
-        return None
+    return None
 
 
 # ============================================================
@@ -172,22 +131,24 @@ def calculate_distance(
     earth_radius = 6371.0
 
     lat1 = math.radians(lat1)
-    lon1 = math.radians(lon1)
-
     lat2 = math.radians(lat2)
-    lon2 = math.radians(lon2)
 
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
+    delta_lat = math.radians(
+        lat2 - lat1
+    )
+
+    delta_lon = math.radians(
+        lon2 - lon1
+    )
 
     a = (
-        math.sin(dlat / 2) ** 2
+        math.sin(delta_lat / 2) ** 2
         +
         math.cos(lat1)
         *
         math.cos(lat2)
         *
-        math.sin(dlon / 2) ** 2
+        math.sin(delta_lon / 2) ** 2
     )
 
     c = 2 * math.atan2(
@@ -199,7 +160,7 @@ def calculate_distance(
 
 
 # ============================================================
-# SEARCH NEARBY STORES
+# SEARCH LOCAL STORES
 # ============================================================
 
 def search_local_stores(
@@ -208,11 +169,11 @@ def search_local_stores(
     radius_km=10
 ):
 
-    coordinates = get_location_coordinates(
-        location
+    user_coordinates = (
+        get_location_coordinates(location)
     )
 
-    if not coordinates:
+    if not user_coordinates:
 
         st.warning(
             "⚠️ Could not determine the coordinates "
@@ -221,7 +182,7 @@ def search_local_stores(
 
         return []
 
-    user_lat, user_lon = coordinates
+    user_lat, user_lon = user_coordinates
 
     url = "https://serpapi.com/search.json"
 
@@ -245,35 +206,25 @@ def search_local_stores(
             timeout=30
         )
 
+        response.raise_for_status()
+
         data = response.json()
 
-        if response.status_code != 200:
-
-            st.error(
-                "❌ SerpApi error: "
-                + str(
-                    data.get(
-                        "error",
-                        "Unknown error"
-                    )
-                )
-            )
-
-            return []
-
-        raw_stores = data.get(
+        local_results = data.get(
             "local_results",
             []
         )
 
-        nearby_stores = []
+        filtered_stores = []
 
-        for store in raw_stores:
+        for store in local_results:
 
             gps = store.get(
-                "gps_coordinates",
-                {}
+                "gps_coordinates"
             )
+
+            if not gps:
+                continue
 
             store_lat = gps.get(
                 "latitude"
@@ -287,16 +238,21 @@ def search_local_stores(
                 store_lat is None
                 or store_lon is None
             ):
-
                 continue
 
-            distance = calculate_distance(
-                user_lat,
-                user_lon,
-                float(store_lat),
-                float(store_lon)
-            )
+            try:
 
+                distance = calculate_distance(
+                    user_lat,
+                    user_lon,
+                    float(store_lat),
+                    float(store_lon)
+                )
+
+            except Exception:
+                continue
+
+            # HARD RADIUS FILTER
             if distance <= radius_km:
 
                 store["distance_km"] = round(
@@ -304,18 +260,18 @@ def search_local_stores(
                     2
                 )
 
-                nearby_stores.append(
+                filtered_stores.append(
                     store
                 )
 
-        nearby_stores.sort(
+        filtered_stores.sort(
             key=lambda x: x.get(
                 "distance_km",
                 999999
             )
         )
 
-        return nearby_stores
+        return filtered_stores
 
     except Exception as e:
 
@@ -330,68 +286,64 @@ def search_local_stores(
 # DEAL SCORE
 # ============================================================
 
-def calculate_deal_score(
-    price,
-    rating,
-    reviews
-):
+def calculate_deal_score(item):
 
-    score = 0
+    price = item.get(
+        "extracted_price"
+    )
+
+    rating = item.get(
+        "rating"
+    )
+
+    reviews = item.get(
+        "reviews"
+    )
 
     try:
-
-        if price is not None:
-            score += 50
-
-        if rating is not None:
-
-            rating_value = float(
-                rating
-            )
-
-            score += rating_value * 8
-
-        if reviews is not None:
-
-            if isinstance(
-                reviews,
-                str
-            ):
-
-                reviews_value = int(
-                    reviews.replace(
-                        ",",
-                        ""
-                    )
-                )
-
-            else:
-
-                reviews_value = int(
-                    reviews
-                )
-
-            if reviews_value >= 1000:
-                score += 10
-
-            elif reviews_value >= 500:
-                score += 7
-
-            elif reviews_value >= 100:
-                score += 5
-
+        price = float(price)
     except Exception:
+        price = None
 
-        pass
+    try:
+        rating = float(rating)
+    except Exception:
+        rating = 0
+
+    try:
+        reviews = int(reviews)
+    except Exception:
+        reviews = 0
+
+    if price is None:
+
+        return 0
+
+    rating_score = (
+        rating / 5
+    ) * 50
+
+    review_score = min(
+        math.log10(
+            reviews + 1
+        ) * 10,
+        30
+    )
+
+    price_score = 20
 
     return round(
-        score,
+        rating_score
+        +
+        review_score
+        +
+        price_score,
         2
     )
 
 
 # ============================================================
-# ⭐ CUSTOMER REVIEW ANALYZER
+# AI CUSTOMER REVIEW ANALYSIS
 # ============================================================
 
 def analyze_customer_reviews(reviews):
@@ -419,13 +371,11 @@ def analyze_customer_reviews(reviews):
             review,
             str
         ):
-
             continue
 
         review = review.strip()
 
         if not review:
-
             continue
 
         try:
@@ -456,8 +406,10 @@ def analyze_customer_reviews(reviews):
 
     total = (
         positive
-        + negative
-        + neutral
+        +
+        negative
+        +
+        neutral
     )
 
     if total == 0:
@@ -473,16 +425,17 @@ def analyze_customer_reviews(reviews):
 
     average_polarity = (
         sum(polarities)
-        / len(polarities)
+        /
+        len(polarities)
     )
 
-    score = (
-        (average_polarity + 1)
-        / 2
-    ) * 100
-
     score = round(
-        score
+        (
+            (average_polarity + 1)
+            /
+            2
+        )
+        * 100
     )
 
     positive_percentage = (
@@ -495,19 +448,27 @@ def analyze_customer_reviews(reviews):
 
     if positive_percentage >= 70:
 
-        sentiment = "Very Positive 😊"
+        sentiment = (
+            "Very Positive 😊"
+        )
 
     elif positive_percentage >= 50:
 
-        sentiment = "Positive 👍"
+        sentiment = (
+            "Positive 👍"
+        )
 
     elif negative_percentage >= 50:
 
-        sentiment = "Negative 👎"
+        sentiment = (
+            "Negative 👎"
+        )
 
     else:
 
-        sentiment = "Mixed 😐"
+        sentiment = (
+            "Mixed 😐"
+        )
 
     return {
         "score": score,
@@ -523,51 +484,64 @@ def analyze_customer_reviews(reviews):
 # SESSION STATE
 # ============================================================
 
-if "online_results" not in st.session_state:
+if "priced_results" not in st.session_state:
 
-    st.session_state.online_results = []
+    st.session_state.priced_results = []
 
 
-if "local_stores" not in st.session_state:
+if "stores" not in st.session_state:
 
-    st.session_state.local_stores = []
+    st.session_state.stores = []
+
+
+# ============================================================
+# TITLE
+# ============================================================
+
+st.title(
+    "🛍️ Local Price Finder AI"
+)
+
+st.write(
+    "Find the best prices, nearby stores, "
+    "customer satisfaction and smart deals "
+    "using SerpApi."
+)
 
 
 # ============================================================
 # INPUT SECTION
 # ============================================================
 
-st.subheader("📋 Product Search")
-
-
-product = st.text_input(
-    "🛒 Enter Product Name",
-    placeholder="Example: Laptop"
+st.subheader(
+    "🔎 Search Product"
 )
 
+product = st.text_input(
+    "🛍️ Product Name",
+    placeholder="Example: iPhone 16"
+)
 
 location = st.text_input(
-    "📍 Enter Your Location",
+    "📍 Your Location",
     placeholder="Example: Hyderabad"
 )
 
-
-budget = st.number_input(
-    "💰 Your Maximum Budget (₹)",
-    min_value=0,
-    value=50000,
-    step=1000
-)
-
-
-# ============================================================
-# SEARCH OPTIONS
-# ============================================================
 
 col1, col2 = st.columns(2)
 
 
 with col1:
+
+    budget = st.number_input(
+        "💰 Maximum Budget (₹)",
+        min_value=0,
+        value=0,
+        step=1000
+    )
+
+
+with col2:
 
     radius = st.selectbox(
         "📍 Store Search Radius",
@@ -587,21 +561,19 @@ with col1:
     )
 
 
-with col2:
-
-    condition = st.selectbox(
-        "📦 Product Condition",
-        [
-            "Any",
-            "New",
-            "Used",
-            "Refurbished"
-        ]
-    )
+condition = st.selectbox(
+    "📦 Product Condition",
+    [
+        "Any",
+        "New",
+        "Used",
+        "Refurbished"
+    ]
+)
 
 
 priority = st.selectbox(
-    "🎯 What matters most?",
+    "🎯 Priority",
     [
         "Lowest Price",
         "Best Overall Deal",
@@ -612,7 +584,7 @@ priority = st.selectbox(
 
 
 # ============================================================
-# 📍 NEARBY LOCAL STORES
+# NEARBY LOCAL STORES
 # ============================================================
 
 st.divider()
@@ -627,19 +599,7 @@ if st.button(
     use_container_width=True
 ):
 
-    if not product:
-
-        st.warning(
-            "⚠️ Please enter a product first."
-        )
-
-    elif not location:
-
-        st.warning(
-            "⚠️ Please enter your location first."
-        )
-
-    else:
+    if product and location:
 
         with st.spinner(
             "📍 Finding nearby stores..."
@@ -651,155 +611,141 @@ if st.button(
                 radius_km
             )
 
-        st.session_state.local_stores = stores
-
+        st.session_state.stores = stores
 
         if stores:
 
             st.success(
-                f"Found {len(stores)} stores "
-                f"within {radius_km} km."
+                f"Found {len(stores)} "
+                f"store(s) within "
+                f"{radius_km} km."
             )
 
         else:
 
-            st.info(
-                f"No {product} stores found "
-                f"within {radius_km} km."
+            st.warning(
+                f"⚠️ No stores found within "
+                f"{radius_km} km."
             )
+
+    else:
+
+        st.warning(
+            "⚠️ Please enter both product "
+            "and location."
+        )
 
 
 # ============================================================
 # DISPLAY NEARBY STORES
 # ============================================================
 
-if st.session_state.local_stores:
+if st.session_state.stores:
 
-    st.markdown(
-        "### 🏪 Nearby Stores"
-    )
+    for store in (
+        st.session_state.stores
+    ):
 
-    for store in st.session_state.local_stores:
+        st.markdown("---")
 
-        store_name = store.get(
-            "title",
-            "Local Store"
+        st.subheader(
+            f"🏪 {store.get('title', 'Store')}"
         )
 
         address = store.get(
-            "address",
-            "Address unavailable"
+            "address"
         )
+
+        if address:
+
+            st.write(
+                f"📍 **Address:** {address}"
+            )
+
+        rating = store.get(
+            "rating"
+        )
+
+        if rating:
+
+            st.write(
+                f"⭐ **Rating:** {rating}"
+            )
+
+        reviews = store.get(
+            "reviews"
+        )
+
+        if reviews:
+
+            st.write(
+                f"💬 **Reviews:** {reviews}"
+            )
+
+        phone = store.get(
+            "phone"
+        )
+
+        if phone:
+
+            st.write(
+                f"📞 **Phone:** {phone}"
+            )
 
         distance = store.get(
             "distance_km"
         )
 
-        rating = store.get(
-            "rating",
-            "N/A"
-        )
-
-        reviews = store.get(
-            "reviews",
-            "N/A"
-        )
-
-        phone = store.get(
-            "phone",
-            "Not available"
-        )
-
-        st.markdown(
-            f"""
-            ### 🏪 {store_name}
-
-            📍 **Address:** {address}
-
-            ⭐ **Rating:** {rating}
-
-            💬 **Reviews:** {reviews}
-
-            📞 **Phone:** {phone}
-            """
-        )
-
         if distance is not None:
 
-            st.markdown(
-                f"📏 **Distance:** {distance} km away"
+            st.write(
+                f"📏 **Distance:** "
+                f"{distance} km"
             )
 
-        gps = store.get(
-            "gps_coordinates",
-            {}
+        place_id = store.get(
+            "place_id"
         )
 
-        latitude = gps.get(
-            "latitude"
-        )
-
-        longitude = gps.get(
-            "longitude"
-        )
-
-        if latitude and longitude:
+        if place_id:
 
             maps_url = (
-                "https://www.google.com/maps/dir/?api=1"
-                f"&destination={latitude},{longitude}"
+                "https://www.google.com/maps/"
+                f"search/?api=1&query="
+                f"{store.get('title', '')}"
+                f"&query_place_id="
+                f"{place_id}"
             )
 
-            st.link_button(
-                "🧭 Get Directions",
-                maps_url
-            )
-
-        elif address:
+        else:
 
             maps_url = (
-                "https://www.google.com/maps/search/?api=1"
-                f"&query={quote(address)}"
+                "https://www.google.com/maps/"
+                "search/?api=1&query="
+                f"{store.get('title', '')}"
             )
 
-            st.link_button(
-                "🧭 View on Google Maps",
-                maps_url
-            )
-
-        st.divider()
+        st.link_button(
+            "🗺️ Get Directions",
+            maps_url
+        )
 
 
 # ============================================================
-# 🔎 FIND BEST PRICES
+# FIND BEST PRICES
 # ============================================================
 
-st.subheader(
-    "🔎 Find Best Prices"
-)
-
+st.divider()
 
 if st.button(
     "🔎 Find Best Prices",
     use_container_width=True
 ):
 
-    if not product:
-
-        st.warning(
-            "⚠️ Please enter a product first."
-        )
-
-    elif not location:
-
-        st.warning(
-            "⚠️ Please enter your location first."
-        )
-
-    else:
+    if product and location:
 
         with st.spinner(
-            "🔎 Searching for the best prices..."
+            "🔎 Searching prices..."
         ):
 
             results = search_product_prices(
@@ -807,6 +753,9 @@ if st.button(
                 location
             )
 
+        # ----------------------------------------------------
+        # CONDITION FILTER
+        # ----------------------------------------------------
 
         if condition != "Any":
 
@@ -814,9 +763,11 @@ if st.button(
 
             for item in results:
 
-                title = item.get(
-                    "title",
-                    ""
+                title = str(
+                    item.get(
+                        "title",
+                        ""
+                    )
                 ).lower()
 
                 if condition.lower() in title:
@@ -825,263 +776,292 @@ if st.button(
                         item
                     )
 
+            # Keep original results if filter
+            # would otherwise remove everything
             if filtered_results:
 
                 results = filtered_results
 
 
-        st.session_state.online_results = results
+        # ----------------------------------------------------
+        # BUDGET FILTER
+        # ----------------------------------------------------
+
+        if budget > 0:
+
+            budget_results = []
+
+            for item in results:
+
+                price = item.get(
+                    "extracted_price"
+                )
+
+                try:
+
+                    price = float(price)
+
+                    if price <= budget:
+
+                        budget_results.append(
+                            item
+                        )
+
+                except Exception:
+
+                    pass
+
+            if budget_results:
+
+                results = budget_results
+
+
+        # ----------------------------------------------------
+        # DEAL SCORE
+        # ----------------------------------------------------
+
+        for item in results:
+
+            item["deal_score"] = (
+                calculate_deal_score(item)
+            )
+
+
+        # ----------------------------------------------------
+        # PRIORITY SORTING
+        # ----------------------------------------------------
+
+        if priority == "Lowest Price":
+
+            results.sort(
+                key=lambda x:
+                x.get(
+                    "extracted_price",
+                    float("inf")
+                )
+                if isinstance(
+                    x.get("extracted_price"),
+                    (int, float)
+                )
+                else float("inf")
+            )
+
+        elif priority == "Best Overall Deal":
+
+            results.sort(
+                key=lambda x:
+                x.get(
+                    "deal_score",
+                    0
+                ),
+                reverse=True
+            )
+
+        elif priority == "Best Rating":
+
+            results.sort(
+                key=lambda x:
+                x.get(
+                    "rating",
+                    0
+                )
+                if isinstance(
+                    x.get("rating"),
+                    (int, float)
+                )
+                else 0,
+                reverse=True
+            )
+
+        elif priority == "Nearest Store":
+
+            # Online shopping results don't
+            # necessarily have distance.
+            # Keep results in SerpApi order.
+            pass
+
+
+        st.session_state.priced_results = (
+            results
+        )
+
+    else:
+
+        st.warning(
+            "⚠️ Please enter both product "
+            "and location."
+        )
 
 
 # ============================================================
 # PRICE RESULTS
 # ============================================================
 
-priced_results = []
+priced_results = (
+    st.session_state.priced_results
+)
 
 
-if st.session_state.online_results:
+if priced_results:
+
+    st.divider()
 
     st.subheader(
-        "🛒 Price Results"
+        "💰 Best Price Results"
     )
 
-    for item in st.session_state.online_results:
+    # --------------------------------------------------------
+    # DISPLAY PRODUCTS
+    # --------------------------------------------------------
+
+    for item in priced_results:
+
+        st.markdown("---")
 
         title = item.get(
             "title",
             "Product"
         )
 
-        price = item.get(
-            "price",
-            "Price unavailable"
+        st.subheader(
+            f"🛍️ {title}"
         )
 
         source = item.get(
-            "source",
-            "Unknown Store"
+            "source"
         )
 
-        link = item.get(
-            "link",
-            ""
-        )
+        if source:
 
-        rating = item.get(
-            "rating",
-            "N/A"
-        )
+            st.write(
+                f"🏪 **Store:** {source}"
+            )
 
-        reviews = item.get(
-            "reviews",
-            "N/A"
+        price = item.get(
+            "price"
         )
 
         extracted_price = item.get(
             "extracted_price"
         )
 
-        if extracted_price is not None:
+        if price:
 
-            priced_results.append(
-                item
+            st.write(
+                f"💰 **Price:** {price}"
             )
 
-        st.markdown(
-            f"""
-            ### 🛍️ {title}
+        elif extracted_price is not None:
 
-            🏪 **Store:** {source}
-
-            💰 **Price:** {price}
-
-            ⭐ **Rating:** {rating}
-
-            💬 **Reviews:** {reviews}
-            """
-        )
-
-        if link:
-
-            st.link_button(
-                "🛒 View Product",
-                link
+            st.write(
+                f"💰 **Price:** "
+                f"₹{extracted_price:,.0f}"
             )
-
-        st.divider()
-
-
-# ============================================================
-# 💰 BEST ONLINE PRICE
-# ============================================================
-
-if priced_results:
-
-    st.subheader(
-        "💰 Best Online Price"
-    )
-
-    cheapest_item = min(
-        priced_results,
-        key=lambda x: x.get(
-            "extracted_price",
-            float("inf")
-        )
-    )
-
-    cheapest_price = cheapest_item.get(
-        "extracted_price"
-    )
-
-    cheapest_title = cheapest_item.get(
-        "title",
-        "Best Price"
-    )
-
-    cheapest_source = cheapest_item.get(
-        "source",
-        "Unknown Store"
-    )
-
-    st.success(
-        f"""
-        🏆 **Lowest Price Found**
-
-        **Product:** {cheapest_title}
-
-        **Store:** {cheapest_source}
-
-        **Price:** ₹{cheapest_price:,.0f}
-        """
-    )
-
-    cheapest_link = cheapest_item.get(
-        "link"
-    )
-
-    if cheapest_link:
-
-        st.link_button(
-            "🛒 Buy at Lowest Price",
-            cheapest_link,
-            use_container_width=True
-        )
-
-
-# ============================================================
-# 💸 SAVINGS ANALYSIS
-# ============================================================
-
-if len(priced_results) >= 2:
-
-    prices = [
-        item.get(
-            "extracted_price"
-        )
-        for item in priced_results
-        if item.get(
-            "extracted_price"
-        ) is not None
-    ]
-
-    if prices:
-
-        lowest_price = min(
-            prices
-        )
-
-        highest_price = max(
-            prices
-        )
-
-        savings = (
-            highest_price
-            - lowest_price
-        )
-
-        st.subheader(
-            "💸 Savings Analysis"
-        )
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-
-            st.metric(
-                "Lowest Price",
-                f"₹{lowest_price:,.0f}"
-            )
-
-        with col2:
-
-            st.metric(
-                "Highest Price",
-                f"₹{highest_price:,.0f}"
-            )
-
-        with col3:
-
-            st.metric(
-                "Potential Savings",
-                f"₹{savings:,.0f}"
-            )
-
-
-# ============================================================
-# ⭐ AI CUSTOMER REVIEW ANALYSIS
-# ============================================================
-
-st.divider()
-
-st.subheader(
-    "⭐ AI Customer Review Analysis"
-)
-
-
-if priced_results:
-
-    for item in priced_results[:5]:
-
-        title = item.get(
-            "title",
-            "Product"
-        )
 
         rating = item.get(
             "rating"
         )
 
+        if rating:
+
+            st.write(
+                f"⭐ **Rating:** {rating}/5"
+            )
+
         review_count = item.get(
             "reviews"
         )
 
-        source = item.get(
-            "source",
-            "Unknown Store"
+        if review_count:
+
+            st.write(
+                f"💬 **Reviews:** "
+                f"{review_count}"
+            )
+
+        deal_score = item.get(
+            "deal_score"
         )
 
-        review_texts = []
+        if deal_score:
 
-        possible_reviews = item.get(
-            "reviews_results",
-            []
+            st.write(
+                f"🎯 **Deal Score:** "
+                f"{deal_score}/100"
+            )
+
+        # ----------------------------------------------------
+        # VISIT WEBSITE BUTTON
+        # ----------------------------------------------------
+
+        product_link = item.get(
+            "link"
         )
 
-        if isinstance(
-            possible_reviews,
-            list
+        if product_link:
+
+            st.link_button(
+                "🌐 Visit Website",
+                product_link
+            )
+
+        else:
+
+            st.info(
+                "🌐 Website link is not "
+                "available for this result."
+            )
+
+
+    # ========================================================
+    # BEST ONLINE PRICE
+    # ========================================================
+
+    st.divider()
+
+    st.subheader(
+        "🏆 Best Online Price"
+    )
+
+    valid_prices = []
+
+    for item in priced_results:
+
+        price = item.get(
+            "extracted_price"
+        )
+
+        try:
+
+            price = float(price)
+
+            valid_prices.append(
+                (price, item)
+            )
+
+        except Exception:
+
+            pass
+
+
+    if valid_prices:
+
+        valid_prices.sort(
+            key=lambda x: x[0]
+        )
+
+        best_price, best_item = (
+            valid_prices[0]
+        )
+
+        st.success(
+            f"🏆 Best Price: "
+            f"₹{best_price:,.0f}"
+        )
+
+        if best_item.get(
+            "source"
         ):
 
-            for review in possible_reviews:
-
-                if isinstance(
-                    review,
-                    dict
-                ):
-
-                    text = (
-                        review.get("snippet")
-                        or review.get("text")
-                        or review.get("content"))
-          
+            st.write(
+                f"?
