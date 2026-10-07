@@ -75,32 +75,64 @@ location = st.text_input(
 # =================================
 # ONLINE PRICE SEARCH
 # =================================
-if st.button("🔎 Find Best Prices"):
+if st.button("📍 Find Nearby Stores"):
 
     if product and location:
 
-        with st.spinner("🔎 Searching for prices..."):
+        with st.spinner(
+            "📍 Searching nearby stores..."
+        ):
 
-            results = search_products(
+            stores = search_local_stores(
                 product,
                 location
             )
 
-        if results:
+        if stores:
 
             st.success(
-                f"Found {len(results)} online results! 🎉"
+                f"Found {len(stores)} nearby stores! 🎉"
             )
 
-            # Products with numerical prices
-            priced_results = [
-                item
-                for item in results
-                if isinstance(
-                    item.get("extracted_price"),
-                    (int, float)
+            for store in stores:
+
+                st.markdown(
+                    f"### 🏪 {store.get('title', 'Unknown Store')}"
                 )
-            ]
+
+                st.write(
+                    f"⭐ **Rating:** "
+                    f"{store.get('rating', 'N/A')}"
+                )
+
+                st.write(
+                    f"💬 **Reviews:** "
+                    f"{store.get('reviews', 'N/A')}"
+                )
+
+                st.write(
+                    f"📍 **Address:** "
+                    f"{store.get('address', 'N/A')}"
+                )
+
+                st.write(
+                    f"🏷️ **Type:** "
+                    f"{store.get('type', 'N/A')}"
+                )
+
+                st.divider()
+
+        else:
+
+            st.warning(
+                "No nearby stores were found."
+            )
+
+    else:
+
+        st.error(
+            "Please enter both product and location."
+        )
 
             # -------------------------
             # Best Deal
