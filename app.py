@@ -6,6 +6,22 @@ from serpapi import GoogleSearch
 # SerpApi Product Search
 # -----------------------------
 def search_products(product, location):
+def search_local_stores(product, location):
+
+    params = {
+        "engine": "google_maps",
+        "q": f"{product} stores",
+        "location": location,
+        "type": "search",
+        "api_key": st.secrets["SERPAPI_API_KEY"],
+        "hl": "en",
+        "gl": "in"
+    }
+
+    search = GoogleSearch(params)
+    results = search.get_dict()
+
+    return results.get("local_results", [])
 
     params = {
         "engine": "google_shopping",
