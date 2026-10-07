@@ -8,7 +8,7 @@ def search_products(product, location):
         "engine": "google_shopping",
         "q": product,
         "location": location,
-        "api_key": SERPAPI_API_KEY,
+        "api_key": st.secrets["SERPAPI_API_KEY"],
         "hl": "en",
         "gl": "in"
     }
