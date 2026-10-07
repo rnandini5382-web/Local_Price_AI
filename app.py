@@ -1,10 +1,11 @@
 import streamlit as st
-from serpapi import GoogleSearch
+import requests
+from urllib.parse import quote
 
 
-# =========================================================
-# PAGE CONFIG
-# =========================================================
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
 
 st.set_page_config(
     page_title="Local Price Finder AI",
@@ -13,152 +14,72 @@ st.set_page_config(
 )
 
 
-# =========================================================
-# ONLINE PRODUCT SEARCH
-# =========================================================
+# ============================================================
+# TITLE
+# ============================================================
+
+st.title("🛍️ Local Price Finder AI")
+st.markdown(
+    """
+    ### 🔎 Find the best product deals near you
+    Compare online prices, discover nearby stores, analyze your
+    budget, and get a smart deal recommendation using SERPAPI.
+    """
+)
+
+
+# ============================================================
+# SERPAPI KEY
+# ============================================================
+
+try:
+    SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
+except Exception:
+    SERPAPI_API_KEY = ""
+
+    st.error(
+        "❌ SERPAPI_API_KEY is missing. "
+        "Please add it to Streamlit Secrets."
+    )
+
+
+# ============================================================
+# SEARCH PRODUCTS USING GOOGLE SHOPPING
+# ============================================================
 
 def search_products(product, location):
+
+    if not SERPAPI_API_KEY:
+        return []
+
+    url = "https://serpapi.com/search.json"
 
     params = {
         "engine": "google_shopping",
         "q": product,
         "location": location,
-        "api_key": st.secrets["SERPAPI_API_KEY"],
         "hl": "en",
-        "gl": "in"
+        "gl": "in",
+        "api_key": SERPAPI_API_KEY
     }
 
-    search = GoogleSearch(params)
-    results = search.get_dict()
+    try:
 
-    if "error" in results:
-        st.error(
-            f"SerpApi error: {results['error']}"
+        response = requests.get(
+            url,
+            params=params,
+            timeout=30
         )
-        return []
 
-    return results.get(
-        "shopping_results",
-        []
-    )
+        response.raise_for_status()
 
+        data = response.json()
 
-# =========================================================
-# LOCAL STORE SEARCH
-# =========================================================
-
-def search_local_stores(product, location):
-
-    params = {
-        "engine": "google_maps",
-        "q": f"{product} stores near {location}",
-        "type": "search",
-        "api_key": st.secrets["SERPAPI_API_KEY"],
-        "hl": "en",
-        "gl": "in"
-    }
-
-    search = GoogleSearch(params)
-    results = search.get_dict()
-
-    if "error" in results:
-        st.error(
-            f"SerpApi error: {results['error']}"
+        return data.get(
+            "shopping_results",
+            []
         )
-        return []
 
-    return results.get(
-        "local_results",
-        []
-    )
+    except Exception as e:
 
-
-# =========================================================
-# DEAL SCORE
-# =========================================================
-
-def calculate_deal_score(
-    price,
-    rating,
-    reviews
-):
-
-    score = 0
-
-    if price is not None:
-        score += 50
-
-    if rating is not None:
-        score += (
-            float(rating) / 5
-        ) * 30
-
-    if reviews is not None:
-
-        if reviews >= 1000:
-            score += 20
-
-        elif reviews >= 500:
-            score += 15
-
-        elif reviews >= 100:
-            score += 10
-
-        else:
-            score += 5
-
-    return round(
-        min(score, 100),
-        2
-    )
-
-
-# =========================================================
-# TITLE
-# =========================================================
-
-st.title(
-    "🛍️ Local Price Finder AI"
-)
-
-st.write(
-    "Compare online prices, analyze your budget, "
-    "and discover nearby local stores."
-)
-
-
-# =========================================================
-# INPUTS
-# =========================================================
-
-product = st.text_input(
-    "What product are you looking for?",
-    placeholder="Example: Laptop"
-)
-
-location = st.text_input(
-    "Enter your location",
-    placeholder="Example: Hyderabad"
-)
-
-budget = st.number_input(
-    "💰 Your Maximum Budget (₹)",
-    min_value=0,
-    value=50000,
-    step=1000
-)
-
-
-# =========================================================
-# SESSION STATE
-# =========================================================
-
-if "online_results" not in st.session_state:
-    st.session_state.online_results = []
-
-if "local_stores" not in st.session_state:
-    st.session_state.local_stores = []
-
-
-# =========================================================
-# FIND BEST PRICES
+       
