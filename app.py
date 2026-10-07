@@ -96,19 +96,131 @@ def search_products(product, location):
 # SEARCH NEARBY LOCAL STORES
 # ============================================================
 
-def search_local_stores(product, location):
+def get_location_coordinates(location):
+
+    url = "https://serpapi.com/locations.json"
+
+    params = {
+        "q": location,
+        "limit": 5
+    }
+
+    try:
+
+        response = requests.get(
+            url,
+            params=params,
+            timeout=20
+        )
+
+        response.raise_for_status()
+
+        locations = response.json()
+
+        if not locations:
+            return None
+
+        # Prefer a city-level result
+        for loc in locations:
+
+            gps = loc.get("gps")
+
+            if gps and len(gps) >= 2:
+
+                longitude = gps[0]
+                latitude = gps[1]
+
+                return latitude, longitude
+
+        return None
+
+    except Exception as e:
+
+        st.error(
+            f"❌ Could not determine location: {e}"
+        )
+
+        return None
+
+
+def calculate_distance(
+    lat1,
+    lon1,
+    lat2,
+    lon2
+):
+
+    earth_radius = 6371
+
+    lat1 = math.radians(lat1)
+    lon1 = math.radians(lon1)
+
+    lat2 = math.radians(lat2)
+    lon2 = math.radians(lon2)
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = (
+        math.sin(dlat / 2) ** 2
+        +
+        math.cos(lat1)
+        *
+        math.cos(lat2)
+        *
+        math.sin(dlon / 2) ** 2
+    )
+
+    c = 2 * math.atan2(
+        math.sqrt(a),
+        math.sqrt(1 - a)
+    )
+
+    return earth_radius * c
+
+
+def search_local_stores(
+    product,
+    location,
+    radius_km=10
+):
 
     if not SERPAPI_API_KEY:
+
         return []
+
+    # --------------------------------------------------------
+    # Get coordinates for user's location
+    # --------------------------------------------------------
+
+    coordinates = get_location_coordinates(
+        location
+    )
+
+    if not coordinates:
+
+        st.warning(
+            "⚠️ Could not determine the coordinates "
+            "for this location."
+        )
+
+        return []
+
+    user_lat, user_lon = coordinates
+
+    # --------------------------------------------------------
+    # Google Maps search
+    # --------------------------------------------------------
 
     url = "https://serpapi.com/search.json"
 
     params = {
         "engine": "google_maps",
         "type": "search",
-        "q": product + " stores",
+        "q": f"{product} stores",
         "location": location,
-        "m": 10000,
+        "m": int(radius_km * 1000),
+        "nearby": "true",
         "hl": "en",
         "gl": "in",
         "api_key": SERPAPI_API_KEY
@@ -126,21 +238,82 @@ def search_local_stores(product, location):
 
         if response.status_code != 200:
 
-            error_message = data.get(
-                "error",
-                "Unknown SerpApi error"
-            )
-
             st.error(
-                f"❌ SerpApi error: {error_message}"
+                "❌ SerpApi error: "
+                + str(
+                    data.get(
+                        "error",
+                        "Unknown error"
+                    )
+                )
             )
 
             return []
 
-        return data.get(
+        raw_stores = data.get(
             "local_results",
             []
         )
+
+        nearby_stores = []
+
+        # ----------------------------------------------------
+        # ACTUAL DISTANCE FILTER
+        # ----------------------------------------------------
+
+        for store in raw_stores:
+
+            gps = store.get(
+                "gps_coordinates",
+                {}
+            )
+
+            store_lat = gps.get(
+                "latitude"
+            )
+
+            store_lon = gps.get(
+                "longitude"
+            )
+
+            if (
+                store_lat is None
+                or store_lon is None
+            ):
+
+                continue
+
+            distance = calculate_distance(
+                user_lat,
+                user_lon,
+                store_lat,
+                store_lon
+            )
+
+            # Keep only stores inside radius
+            if distance <= radius_km:
+
+                store["distance_km"] = round(
+                    distance,
+                    2
+                )
+
+                nearby_stores.append(
+                    store
+                )
+
+        # ----------------------------------------------------
+        # Sort nearest first
+        # ----------------------------------------------------
+
+        nearby_stores.sort(
+            key=lambda x: x.get(
+                "distance_km",
+                999999
+            )
+        )
+
+        return nearby_stores
 
     except Exception as e:
 
@@ -256,14 +429,18 @@ col1, col2 = st.columns(2)
 with col1:
 
     radius = st.selectbox(
-        "📍 Store Search Radius",
-        [
-            "5 km",
-            "10 km",
-            "25 km",
-            "50 km"
-        ]
-    )
+    "📍 Store Search Radius",
+    [
+        "5 km",
+        "10 km",
+        "25 km",
+        "50 km"
+    ]
+)
+
+radius_km = int(
+    radius.replace(" km", "")
+)
 
 
 with col2:
@@ -360,6 +537,14 @@ if st.session_state.local_stores:
         address = store.get(
             "address",
             "Address unavailable"
+distance = store.get(
+    "distance_km"
+)
+if distance is not None:
+
+    st.markdown(
+        f"📏 **Distance:** {distance} km away"
+    )
         )
 
         rating = store.get(
