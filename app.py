@@ -534,7 +534,7 @@ if st.session_state.local_stores:
             "Local Store"
         )
 
-                address = store.get(
+            address = store.get(
             "address",
             "Address unavailable"
         )
