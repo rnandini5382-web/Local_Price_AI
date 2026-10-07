@@ -534,7 +534,7 @@ if st.session_state.local_stores:
             "Local Store"
         )
 
-            address = store.get(
+        address = store.get(
             "address",
             "Address unavailable"
         )
@@ -558,32 +558,6 @@ if st.session_state.local_stores:
             "Not available"
         )
 
-        if distance is not None:
-
-            st.markdown(
-                f"📏 **Distance:** {distance} km away"
-            )
-
-        website = store.get(
-            "website",
-            ""
-        )
-
-        latitude = store.get(
-            "gps_coordinates",
-            {}
-        ).get(
-            "latitude"
-        )
-
-        longitude = store.get(
-            "gps_coordinates",
-            {}
-        ).get(
-            "longitude"
-        )
-
-
         st.markdown(
             f"""
             ### 🏪 {store_name}
@@ -598,8 +572,25 @@ if st.session_state.local_stores:
             """
         )
 
+        if distance is not None:
 
-        # Directions
+            st.markdown(
+                f"📏 **Distance:** {distance} km away"
+            )
+
+        latitude = store.get(
+            "gps_coordinates",
+            {}
+        ).get(
+            "latitude"
+        )
+
+        longitude = store.get(
+            "gps_coordinates",
+            {}
+        ).get(
+            "longitude"
+        )
 
         if latitude and longitude:
 
@@ -625,6 +616,10 @@ if st.session_state.local_stores:
                 maps_url
             )
 
+        website = store.get(
+            "website",
+            ""
+        )
 
         if website:
 
@@ -633,9 +628,12 @@ if st.session_state.local_stores:
                 website
             )
 
-
         st.divider()
 
+
+# ============================================================
+# 🔎 FIND BEST PRICES
+# ============================================================
 
 # ============================================================
 # 🔎 FIND BEST PRICES
