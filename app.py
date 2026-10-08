@@ -1253,207 +1253,282 @@ if priced_results:
 
     st.divider()
 
-    st.subheader(
-        "⭐ AI Customer Review Analysis"
-    )
+    st.subheader("⭐ AI Customer Review Analysis")
 
-    for item in priced_results:
+if priced_results:
 
-        title = item.get(
-            "title",
-            "Product"
+    reviewed_products = []
+
+    with st.spinner("🔍 Checking products for real customer reviews..."):
+
+        for product in priced_results:
+
+            review_data = fetch_product_reviews(product)
+
+            # Keep ONLY products that have actual review text
+            if review_data and review_data.get("reviews"):
+
+                product_copy = product.copy()
+
+                product_copy["customer_rating"] = (
+                    review_data.get("rating")
+                )
+
+                product_copy["customer_review_count"] = (
+                    review_data.get("review_count")
+                )
+
+                product_copy["actual_reviews"] = (
+                    review_data.get("reviews")
+                )
+
+                reviewed_products.append(product_copy)
+
+    # -------------------------------------------------
+    # SHOW ONLY PRODUCTS WITH REAL CUSTOMER REVIEWS
+    # -------------------------------------------------
+
+    if reviewed_products:
+
+        st.success(
+            f"✅ Found {len(reviewed_products)} "
+            f"product(s) with real customer reviews."
         )
 
-        rating = item.get(
-            "rating"
-        )
+        for product in reviewed_products:
 
-        review_count = item.get(
-            "reviews"
-        )
+            title = product.get(
+                "title",
+                "Unknown Product"
+            )
 
-        st.markdown(
-            f"### 🛍️ {title}"
-        )
+            customer_rating = product.get(
+                "customer_rating"
+            )
 
-        # ----------------------------------------------------
-        # CHECK FOR ACTUAL REVIEW TEXT
-        # ----------------------------------------------------
+            customer_review_count = product.get(
+                "customer_review_count"
+            )
 
-        reviews_results = item.get(
-            "reviews_results",
-            []
-        )
+            actual_reviews = product.get(
+                "actual_reviews",
+                []
+            )
 
-        review_texts = []
+            # Extract review text
+            review_texts = []
 
-        if isinstance(
-            reviews_results,
-            list
-        ):
+            for review in actual_reviews:
 
-            for review in reviews_results:
+                if not isinstance(review, dict):
+                    continue
 
-                if isinstance(
-                    review,
-                    dict
+                text = review.get(
+                    "text",
+                    ""
+                )
+
+                if (
+                    isinstance(text, str)
+                    and text.strip()
                 ):
-
-                    text = (
-                        review.get("text")
-                        or review.get("content")
-                        or review.get("snippet")
-                    )
-
-                    if text:
-                        review_texts.append(
-                            text
-                        )
-
-                elif isinstance(
-                    review,
-                    str
-                ):
-
                     review_texts.append(
-                        review
+                        text.strip()
                     )
 
-        # ----------------------------------------------------
-        # AI REVIEW TEXT ANALYSIS
-        # ----------------------------------------------------
-
-        if review_texts:
+            # Safety check
+            if not review_texts:
+                continue
 
             analysis = analyze_customer_reviews(
                 review_texts
             )
 
-            if analysis["score"] is not None:
+            if analysis["total"] == 0:
+                continue
 
-                col1, col2 = st.columns(2)
+            st.markdown("---")
 
-                with col1:
+            st.markdown(
+                f"### 🛍️ {title}"
+            )
+
+            # -----------------------------------------
+            # CUSTOMER TRUST INFORMATION
+            # -----------------------------------------
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+
+                if customer_rating is not None:
+
                     st.metric(
-                        "🤖 AI Review Score",
-                        f'{analysis["score"]}/100'
+                        "⭐ Customer Rating",
+                        f"{customer_rating} / 5"
                     )
 
-                with col2:
+                else:
+
                     st.metric(
-                        "📊 Reviews Analyzed",
-                        analysis["total"]
+                        "⭐ Customer Rating",
+                        "N/A"
                     )
 
-                st.write(
-                    f'**Overall Sentiment:** '
-                    f'{analysis["sentiment"]}'
+            with col2:
+
+                if customer_review_count is not None:
+
+                    st.metric(
+                        "💬 Customer Reviews",
+                        f"{customer_review_count:,}"
+                    )
+
+                else:
+
+                    st.metric(
+                        "💬 Customer Reviews",
+                        "N/A"
+                    )
+
+            with col3:
+
+                st.metric(
+                    "🤖 Reviews Analyzed",
+                    analysis["total"]
                 )
 
-                col1, col2, col3 = st.columns(3)
+            # -----------------------------------------
+            # AI ANALYSIS
+            # -----------------------------------------
 
-                with col1:
+            st.markdown("#### 🤖 AI Review Analysis")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                if analysis["score"] is not None:
+
                     st.metric(
-                        "😊 Positive",
-                        analysis["positive"]
+                        "AI Review Score",
+                        f'{analysis["score"]} / 100'
                     )
 
-                with col2:
-                    st.metric(
-                        "😐 Neutral",
-                        analysis["neutral"]
-                    )
+            with col2:
 
-                with col3:
-                    st.metric(
-                        "👎 Negative",
-                        analysis["negative"]
-                    )
+                st.metric(
+                    "Overall Sentiment",
+                    analysis["sentiment"]
+                )
 
-        # ----------------------------------------------------
-        # RATING FALLBACK
-        # ----------------------------------------------------
+            # -----------------------------------------
+            # SENTIMENT BREAKDOWN
+            # -----------------------------------------
 
-        else:
+            st.markdown("#### 📊 Sentiment Breakdown")
 
-            if rating is not None:
+            col1, col2, col3 = st.columns(3)
 
-                try:
+            with col1:
 
-                    rating_value = float(
-                        rating
-                    )
+                st.success(
+                    f"😊 Positive: "
+                    f"{analysis['positive']}"
+                )
 
-                    satisfaction_score = round(
-                        (rating_value / 5) * 100
-                    )
-
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        st.metric(
-                            "⭐ Customer Rating",
-                            f"{rating_value}/5"
-                        )
-
-                    with col2:
-                        st.metric(
-                            "🤖 Satisfaction Score",
-                            f"{satisfaction_score}/100"
-                        )
-
-                    if review_count:
-                        st.write(
-                            f"💬 **Based on:** "
-                            f"{review_count} customer reviews"
-                        )
-
-                    if rating_value >= 4.5:
-
-                        st.success(
-                            "😊 Excellent customer satisfaction"
-                        )
-
-                    elif rating_value >= 4.0:
-
-                        st.success(
-                            "👍 Very good customer satisfaction"
-                        )
-
-                    elif rating_value >= 3.0:
-
-                        st.warning(
-                            "😐 Mixed customer satisfaction"
-                        )
-
-                    else:
-
-                        st.error(
-                            "👎 Low customer satisfaction"
-                        )
-
-                    st.caption(
-                        "ℹ️ Individual review text was not "
-                        "available from the current Google "
-                        "Shopping result. The satisfaction "
-                        "score is based on the available "
-                        "customer rating."
-                    )
-
-                except Exception:
-
-                    st.info(
-                        "ℹ️ Customer review information "
-                        "is unavailable."
-                    )
-
-            else:
+            with col2:
 
                 st.info(
-                    "ℹ️ No customer rating information "
-                    "was returned for this product."
+                    f"😐 Neutral: "
+                    f"{analysis['neutral']}"
                 )
 
+            with col3:
+
+                st.error(
+                    f"👎 Negative: "
+                    f"{analysis['negative']}"
+                )
+
+            # -----------------------------------------
+            # ACTUAL CUSTOMER REVIEWS
+            # -----------------------------------------
+
+            with st.expander(
+                "💬 View Customer Reviews"
+            ):
+
+                for review in actual_reviews:
+
+                    review_text = review.get(
+                        "text",
+                        ""
+                    )
+
+                    if not review_text:
+                        continue
+
+                    reviewer = review.get(
+                        "user_name",
+                        "Anonymous"
+                    )
+
+                    review_rating = review.get(
+                        "rating"
+                    )
+
+                    review_date = review.get(
+                        "date",
+                        ""
+                    )
+
+                    review_title = review.get(
+                        "title",
+                        ""
+                    )
+
+                    st.markdown(
+                        f"**👤 {reviewer}**"
+                    )
+
+                    if review_rating is not None:
+
+                        st.write(
+                            f"⭐ {review_rating} / 5"
+                        )
+
+                    if review_title:
+
+                        st.markdown(
+                            f"**{review_title}**"
+                        )
+
+                    st.write(
+                        review_text
+                    )
+
+                    if review_date:
+
+                        st.caption(
+                            f"📅 {review_date}"
+                        )
+
+                    st.divider()
+
+    else:
+
+        st.info(
+            "ℹ️ No products with actual customer "
+            "review text were found."
+        )
+
+else:
+
+    st.info(
+        "🔎 Find product prices first to analyze "
+        "customer reviews."
+    )
     # ========================================================
     # SMART DEAL RECOMMENDATION
     # ========================================================
