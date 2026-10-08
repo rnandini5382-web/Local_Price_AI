@@ -4,11 +4,10 @@ import math
 import re
 from textblob import TextBlob
 
-SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
-
-
 # ============================================================
-# PAGE CONFIGURATION
+# LOCAL PRICE FINDER AI
+# SerpApi-powered price comparison + local stores +
+# customer review analysis + demo fallback
 # ============================================================
 
 st.set_page_config(
@@ -17,26 +16,224 @@ st.set_page_config(
     layout="wide"
 )
 
+# ------------------------------------------------------------
+# API KEY
+# ------------------------------------------------------------
+SERPAPI_API_KEY = st.secrets.get("SERPAPI_API_KEY", "")
 
-# ============================================================
-# SERPAPI API KEY
-# ============================================================
+# ------------------------------------------------------------
+# SESSION STATE
+# ------------------------------------------------------------
+if "priced_results" not in st.session_state:
+    st.session_state.priced_results = []
 
-try:
-    SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
-except Exception:
-    st.error(
-        "❌ SERPAPI_API_KEY is missing. "
-        "Please add it to Streamlit Secrets."
+if "search_mode" not in st.session_state:
+    st.session_state.search_mode = "🎭 Demo Mode"
+
+# ------------------------------------------------------------
+# HELPERS
+# ------------------------------------------------------------
+def safe_float(value):
+    try:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return float(value)
+        cleaned = re.sub(r"[^\d.]", "", str(value))
+        return float(cleaned) if cleaned else None
+    except Exception:
+        return None
+
+
+def haversine_km(lat1, lon1, lat2, lon2):
+    radius = 6371.0
+
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+
+    a = (
+        math.sin(dp / 2) ** 2
+        + math.cos(p1)
+        * math.cos(p2)
+        * math.sin(dl / 2) ** 2
     )
-    st.stop()
+
+    return radius * 2 * math.atan2(
+        math.sqrt(a),
+        math.sqrt(1 - a)
+    )
 
 
-# ============================================================
-# SEARCH PRODUCT PRICES
-# ============================================================
+def get_secret_status():
+    return bool(
+        isinstance(SERPAPI_API_KEY, str)
+        and SERPAPI_API_KEY.strip()
+    )
 
+
+# ------------------------------------------------------------
+# DEMO DATA
+# ------------------------------------------------------------
+def demo_price_results(product, location):
+    product_name = product.strip() or "Smartphone"
+
+    return [
+        {
+            "position": 1,
+            "title": f"{product_name} - Amazon",
+            "source": "Amazon",
+            "price": "₹69,999",
+            "extracted_price": 69999,
+            "old_price": "₹79,999",
+            "extracted_old_price": 79999,
+            "rating": 4.6,
+            "reviews": 1248,
+            "delivery": "Free delivery",
+            "product_link": "https://www.amazon.in/",
+            "website_link": "https://www.amazon.in/",
+            "thumbnail": "",
+            "product_id": "demo-product-1"
+        },
+        {
+            "position": 2,
+            "title": f"{product_name} - Flipkart",
+            "source": "Flipkart",
+            "price": "₹72,499",
+            "extracted_price": 72499,
+            "old_price": "₹81,999",
+            "extracted_old_price": 81999,
+            "rating": 4.5,
+            "reviews": 982,
+            "delivery": "Free delivery",
+            "product_link": "https://www.flipkart.com/",
+            "website_link": "https://www.flipkart.com/",
+            "thumbnail": "",
+            "product_id": "demo-product-2"
+        },
+        {
+            "position": 3,
+            "title": f"{product_name} - Croma",
+            "source": "Croma",
+            "price": "₹74,990",
+            "extracted_price": 74990,
+            "old_price": "₹79,990",
+            "extracted_old_price": 79990,
+            "rating": 4.4,
+            "reviews": 614,
+            "delivery": "Free delivery",
+            "product_link": "https://www.croma.com/",
+            "website_link": "https://www.croma.com/",
+            "thumbnail": "",
+            "product_id": "demo-product-3"
+        },
+        {
+            "position": 4,
+            "title": f"{product_name} - Reliance Digital",
+            "source": "Reliance Digital",
+            "price": "₹76,999",
+            "extracted_price": 76999,
+            "old_price": "₹82,999",
+            "extracted_old_price": 82999,
+            "rating": 4.3,
+            "reviews": 421,
+            "delivery": "Free delivery",
+            "product_link": "https://www.reliancedigital.in/",
+            "website_link": "https://www.reliancedigital.in/",
+            "thumbnail": "",
+            "product_id": "demo-product-4"
+        },
+    ]
+
+
+def demo_reviews(product):
+    return {
+        "rating": product.get("rating", 4.5),
+        "review_count": product.get("reviews", 100),
+        "reviews": [
+            {
+                "user_name": "Verified Customer",
+                "rating": 5,
+                "title": "Excellent product",
+                "text": "The product quality is excellent and the performance is very smooth. Battery life is good and delivery was quick.",
+                "date": "2026-10-02"
+            },
+            {
+                "user_name": "Happy Buyer",
+                "rating": 5,
+                "title": "Worth the price",
+                "text": "Very good value for money. The camera and performance are impressive and I am happy with the purchase.",
+                "date": "2026-09-28"
+            },
+            {
+                "user_name": "Customer",
+                "rating": 4,
+                "title": "Good overall",
+                "text": "Good phone with useful features. Setup was easy and the display looks great.",
+                "date": "2026-09-21"
+            },
+            {
+                "user_name": "Verified Buyer",
+                "rating": 3,
+                "title": "Some room for improvement",
+                "text": "The product is good, but charging could be faster. Overall I am satisfied.",
+                "date": "2026-09-17"
+            },
+            {
+                "user_name": "Customer",
+                "rating": 5,
+                "title": "Highly recommended",
+                "text": "Amazing experience. Everything works as expected and the build quality feels premium.",
+                "date": "2026-09-10"
+            },
+        ]
+    }
+
+
+def demo_stores(product, location):
+    return [
+        {
+            "title": f"{product} Store - Banjara Hills",
+            "address": "Banjara Hills, Hyderabad",
+            "distance_km": 2.1,
+            "rating": 4.5,
+            "reviews": 820,
+            "gps": {"latitude": 17.4156, "longitude": 78.4480},
+            "link": "https://www.google.com/maps/"
+        },
+        {
+            "title": f"{product} Store - Jubilee Hills",
+            "address": "Jubilee Hills, Hyderabad",
+            "distance_km": 3.8,
+            "rating": 4.4,
+            "reviews": 610,
+            "gps": {"latitude": 17.4325, "longitude": 78.4071},
+            "link": "https://www.google.com/maps/"
+        },
+        {
+            "title": f"{product} Store - Madhapur",
+            "address": "Madhapur, Hyderabad",
+            "distance_km": 4.6,
+            "rating": 4.3,
+            "reviews": 540,
+            "gps": {"latitude": 17.4483, "longitude": 78.3915},
+            "link": "https://www.google.com/maps/"
+        },
+    ]
+
+
+# ------------------------------------------------------------
+# SERPAPI: GOOGLE SHOPPING
+# ------------------------------------------------------------
 def search_product_prices(product, location):
+    if not get_secret_status():
+        st.error(
+            "❌ SerpApi key is missing. "
+            "Add SERPAPI_API_KEY in Streamlit Secrets."
+        )
+        return []
 
     url = "https://serpapi.com/search.json"
 
@@ -50,12 +247,25 @@ def search_product_prices(product, location):
     }
 
     try:
-
         response = requests.get(
             url,
             params=params,
             timeout=15
         )
+
+        if response.status_code == 401:
+            st.error(
+                "❌ SerpApi authentication failed (HTTP 401). "
+                "Check SERPAPI_API_KEY in Streamlit Secrets."
+            )
+            return []
+
+        if response.status_code == 429:
+            st.error(
+                "⚠️ SerpApi request limit reached (HTTP 429). "
+                "Use Demo Mode or wait for your quota/rate limit to reset."
+            )
+            return []
 
         response.raise_for_status()
 
@@ -66,63 +276,40 @@ def search_product_prices(product, location):
             []
         )
 
-        # Keep the first search fast: one SerpApi request only.
-        # Google Shopping already provides price, rating, review
-        # count and product links for most results.
         for item in results:
-
             item["website_link"] = (
                 item.get("product_link")
                 or item.get("link")
             )
 
-            item["reviews_results"] = []
-
         return results
 
-    except requests.exceptions.HTTPError:
-
-        if response.status_code == 429:
-            st.error(
-                "⚠️ SerpApi request limit reached. "
-                "Please wait for your quota/rate limit to reset."
-            )
-        else:
-            st.error(
-                f"❌ Price search failed "
-                f"(HTTP {response.status_code})."
-            )
-
-        return []
-
     except requests.exceptions.Timeout:
-
         st.error(
             "⏱️ Price search timed out. Please try again."
         )
+        return []
 
+    except requests.exceptions.RequestException:
+        st.error(
+            "❌ Unable to fetch live shopping results right now."
+        )
         return []
 
     except Exception:
-
         st.error(
-            "❌ Unable to fetch product prices right now."
+            "❌ Unexpected error while searching prices."
         )
-
         return []
 
 
-# ============================================================
-# FETCH REAL CUSTOMER REVIEWS
-# ============================================================
-
+# ------------------------------------------------------------
+# SERPAPI: GOOGLE PRODUCT REVIEWS
+# ------------------------------------------------------------
 @st.cache_data(ttl=3600, show_spinner=False)
 def fetch_product_reviews_cached(product_id, page_token):
-    """Fetch real customer review text from SerpApi Google Product API.
-
-    Cached for 1 hour to avoid repeating the same Product API request.
-    Returns None when no actual review text is available.
-    """
+    if not get_secret_status():
+        return None
 
     if not product_id and not page_token:
         return None
@@ -137,7 +324,6 @@ def fetch_product_reviews_cached(product_id, page_token):
     }
 
     if page_token:
-        # Exact Shopping offer/variant and its review set.
         params["page_token"] = page_token
     else:
         params["product_id"] = product_id
@@ -150,8 +336,8 @@ def fetch_product_reviews_cached(product_id, page_token):
             timeout=10
         )
 
-        if response.status_code == 429:
-            return {"rate_limited": True}
+        if response.status_code in (401, 429):
+            return None
 
         response.raise_for_status()
 
@@ -173,16 +359,14 @@ def fetch_product_reviews_cached(product_id, page_token):
             if not isinstance(review, dict):
                 continue
 
-            review_text = review.get("text", "")
+            text = review.get("text", "")
 
             if (
-                isinstance(review_text, str)
-                and review_text.strip()
+                isinstance(text, str)
+                and text.strip()
             ):
                 real_reviews.append(review)
 
-        # IMPORTANT: rating alone is NOT enough.
-        # A product is accepted only when real review text exists.
         if not real_reviews:
             return None
 
@@ -196,348 +380,24 @@ def fetch_product_reviews_cached(product_id, page_token):
         return None
 
 
-def get_reviewed_product(product):
-    """Attach real review data to one Shopping result."""
-
+def fetch_product_reviews(product):
     product_id = product.get("product_id")
+
     page_token = product.get(
         "immersive_product_page_token"
     )
 
-    review_data = fetch_product_reviews_cached(
+    return fetch_product_reviews_cached(
         product_id,
         page_token
     )
 
-    if not review_data or review_data.get("rate_limited"):
-        return None
 
-    product_copy = product.copy()
-
-    # Product API rating is preferred; Shopping rating is a safe fallback
-    # for the displayed customer rating when review text is present.
-    product_copy["customer_rating"] = (
-        review_data.get("rating")
-        if review_data.get("rating") is not None
-        else product.get("rating")
-    )
-
-    product_copy["customer_review_count"] = (
-        review_data.get("review_count")
-        if review_data.get("review_count") is not None
-        else product.get("reviews")
-    )
-
-    product_copy["actual_reviews"] = review_data.get(
-        "reviews",
-        []
-    )
-
-    return product_copy
-
-
-# ============================================================
-# GET LOCATION COORDINATES
-# ============================================================
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_location_coordinates(location):
-
-    url = "https://serpapi.com/locations.json"
-
-    params = {
-        "q": location,
-        "limit": 5
-    }
-
-    try:
-
-        response = requests.get(
-            url,
-            params=params,
-            timeout=8
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        if not data:
-            return None
-
-        location_data = data[0]
-
-        gps = location_data.get("gps")
-
-        if gps and len(gps) >= 2:
-
-            longitude = float(gps[0])
-            latitude = float(gps[1])
-
-            return latitude, longitude
-
-    except Exception:
-        pass
-
-    return None
-
-
-# ============================================================
-# CALCULATE DISTANCE
-# ============================================================
-
-def calculate_distance(
-    lat1,
-    lon1,
-    lat2,
-    lon2
-):
-
-    earth_radius = 6371.0
-
-    lat1 = math.radians(lat1)
-    lat2 = math.radians(lat2)
-
-    delta_lat = math.radians(
-        lat2 - lat1
-    )
-
-    delta_lon = math.radians(
-        lon2 - lon1
-    )
-
-    a = (
-        math.sin(delta_lat / 2) ** 2
-        +
-        math.cos(lat1)
-        *
-        math.cos(lat2)
-        *
-        math.sin(delta_lon / 2) ** 2
-    )
-
-    c = 2 * math.atan2(
-        math.sqrt(a),
-        math.sqrt(1 - a)
-    )
-
-    return earth_radius * c
-
-
-# ============================================================
-# SEARCH LOCAL STORES
-# ============================================================
-
-def search_local_stores(
-    product,
-    location,
-    radius_km=10
-):
-
-    user_coordinates = (
-        get_location_coordinates(location)
-    )
-
-    if not user_coordinates:
-
-        st.warning(
-            "⚠️ Could not determine the coordinates "
-            "for this location."
-        )
-
-        return []
-
-    user_lat, user_lon = user_coordinates
-
-    url = "https://serpapi.com/search.json"
-
-    params = {
-        "engine": "google_maps",
-        "type": "search",
-        "q": f"{product} stores",
-        "location": location,
-        "m": int(radius_km * 1000),
-        "nearby": "true",
-        "hl": "en",
-        "gl": "in",
-        "api_key": SERPAPI_API_KEY
-    }
-
-    try:
-
-        response = requests.get(
-            url,
-            params=params,
-            timeout=15
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        local_results = data.get(
-            "local_results",
-            []
-        )
-
-        filtered_stores = []
-
-        for store in local_results:
-
-            gps = store.get(
-                "gps_coordinates"
-            )
-
-            if not gps:
-                continue
-
-            store_lat = gps.get(
-                "latitude"
-            )
-
-            store_lon = gps.get(
-                "longitude"
-            )
-
-            if (
-                store_lat is None
-                or store_lon is None
-            ):
-                continue
-
-            try:
-
-                distance = calculate_distance(
-                    user_lat,
-                    user_lon,
-                    float(store_lat),
-                    float(store_lon)
-                )
-
-            except Exception:
-                continue
-
-            # HARD RADIUS FILTER
-            if distance <= radius_km:
-
-                store["distance_km"] = round(
-                    distance,
-                    2
-                )
-
-                filtered_stores.append(
-                    store
-                )
-
-        filtered_stores.sort(
-            key=lambda x: x.get(
-                "distance_km",
-                999999
-            )
-        )
-
-        return filtered_stores
-
-    except requests.exceptions.HTTPError:
-
-        if response.status_code == 429:
-            st.error(
-                "⚠️ SerpApi request limit reached. "
-                "Please wait for your quota/rate limit to reset."
-            )
-        else:
-            st.error(
-                f"❌ Nearby store search failed "
-                f"(HTTP {response.status_code})."
-            )
-
-        return []
-
-    except requests.exceptions.Timeout:
-
-        st.error(
-            "⏱️ Nearby store search timed out. Please try again."
-        )
-
-        return []
-
-    except Exception:
-
-        st.error(
-            "❌ Unable to find nearby stores right now."
-        )
-
-        return []
-
-
-# ============================================================
-# DEAL SCORE
-# ============================================================
-
-def calculate_deal_score(item):
-
-    price = item.get(
-        "extracted_price"
-    )
-
-    rating = item.get(
-        "rating"
-    )
-
-    reviews = item.get(
-        "reviews"
-    )
-
-    try:
-        price = float(price)
-    except Exception:
-        price = None
-
-    try:
-        rating = float(rating)
-    except Exception:
-        rating = 0
-
-    try:
-        reviews = int(reviews)
-    except Exception:
-        reviews = 0
-
-    if price is None:
-
-        return 0
-
-    rating_score = (
-        rating / 5
-    ) * 50
-
-    review_score = min(
-        math.log10(
-            reviews + 1
-        ) * 10,
-        30
-    )
-
-    price_score = 20
-
-    return round(
-        rating_score
-        +
-        review_score
-        +
-        price_score,
-        2
-    )
-
-
-# ============================================================
-# AI CUSTOMER REVIEW ANALYSIS
-# ============================================================
-
+# ------------------------------------------------------------
+# REVIEW SENTIMENT ANALYSIS
+# ------------------------------------------------------------
 def analyze_customer_reviews(reviews):
-
     if not reviews:
-
         return {
             "score": None,
             "sentiment": "No review text available",
@@ -550,15 +410,10 @@ def analyze_customer_reviews(reviews):
     positive = 0
     negative = 0
     neutral = 0
-
     polarities = []
 
     for review in reviews:
-
-        if not isinstance(
-            review,
-            str
-        ):
+        if not isinstance(review, str):
             continue
 
         review = review.strip()
@@ -567,41 +422,31 @@ def analyze_customer_reviews(reviews):
             continue
 
         try:
-
             polarity = TextBlob(
                 review
             ).sentiment.polarity
 
-            polarities.append(
-                polarity
-            )
+            polarities.append(polarity)
 
             if polarity > 0.10:
-
                 positive += 1
 
             elif polarity < -0.10:
-
                 negative += 1
 
             else:
-
                 neutral += 1
 
         except Exception:
-
             neutral += 1
 
     total = (
         positive
-        +
-        negative
-        +
-        neutral
+        + negative
+        + neutral
     )
 
     if total == 0:
-
         return {
             "score": None,
             "sentiment": "No usable review text",
@@ -612,18 +457,13 @@ def analyze_customer_reviews(reviews):
         }
 
     average_polarity = (
-        sum(polarities)
-        /
-        len(polarities)
+        sum(polarities) / len(polarities)
+        if polarities
+        else 0
     )
 
     score = round(
-        (
-            (average_polarity + 1)
-            /
-            2
-        )
-        * 100
+        ((average_polarity + 1) / 2) * 100
     )
 
     positive_percentage = (
@@ -635,28 +475,16 @@ def analyze_customer_reviews(reviews):
     ) * 100
 
     if positive_percentage >= 70:
-
-        sentiment = (
-            "Very Positive 😊"
-        )
+        sentiment = "Very Positive 😊"
 
     elif positive_percentage >= 50:
-
-        sentiment = (
-            "Positive 👍"
-        )
+        sentiment = "Positive 👍"
 
     elif negative_percentage >= 50:
-
-        sentiment = (
-            "Negative 👎"
-        )
+        sentiment = "Negative 👎"
 
     else:
-
-        sentiment = (
-            "Mixed 😐"
-        )
+        sentiment = "Mixed 😐"
 
     return {
         "score": score,
@@ -668,261 +496,245 @@ def analyze_customer_reviews(reviews):
     }
 
 
+# ------------------------------------------------------------
+# SERPAPI: GOOGLE MAPS
+# ------------------------------------------------------------
+@st.cache_data(ttl=3600, show_spinner=False)
+def search_local_stores_live(product, location, radius_km):
+    if not get_secret_status():
+        return []
+
+    url = "https://serpapi.com/search.json"
+
+    params = {
+        "engine": "google_maps",
+        "q": product,
+        "location": location,
+        "type": "search",
+        "hl": "en",
+        "gl": "in",
+        "m": int(radius_km * 1000),
+        "api_key": SERPAPI_API_KEY
+    }
+
+    try:
+        response = requests.get(
+            url,
+            params=params,
+            timeout=15
+        )
+
+        if response.status_code in (401, 429):
+            return []
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        local_results = data.get(
+            "local_results",
+            []
+        )
+
+        stores = []
+
+        for item in local_results:
+
+            gps = item.get(
+                "gps_coordinates",
+                {}
+            )
+
+            lat = gps.get("latitude")
+            lon = gps.get("longitude")
+
+            store = {
+                "title": item.get(
+                    "title",
+                    "Local Store"
+                ),
+                "address": item.get(
+                    "address",
+                    "Address unavailable"
+                ),
+                "rating": item.get("rating"),
+                "reviews": item.get("reviews"),
+                "link": item.get("link"),
+                "gps": gps
+            }
+
+            if lat is not None and lon is not None:
+                store["distance_km"] = None
+
+            stores.append(store)
+
+        return stores
+
+    except Exception:
+        return []
+
+
+# ------------------------------------------------------------
+# DISPLAY HELPERS
+# ------------------------------------------------------------
+def sort_results(results, priority):
+    if not results:
+        return results
+
+    if priority == "Lowest Price":
+        return sorted(
+            results,
+            key=lambda x: (
+                safe_float(
+                    x.get("extracted_price")
+                )
+                if safe_float(
+                    x.get("extracted_price")
+                ) is not None
+                else float("inf")
+            )
+        )
+
+    if priority == "Best Rating":
+        return sorted(
+            results,
+            key=lambda x: (
+                safe_float(x.get("rating"))
+                if safe_float(x.get("rating")) is not None
+                else 0
+            ),
+            reverse=True
+        )
+
+    if priority == "Best Overall Deal":
+        def deal_score(item):
+            price = safe_float(
+                item.get("extracted_price")
+            )
+            rating = safe_float(
+                item.get("rating")
+            )
+
+            if price is None:
+                price = 999999999
+
+            if rating is None:
+                rating = 0
+
+            return (
+                (rating * 20)
+                - (price / 10000)
+            )
+
+        return sorted(
+            results,
+            key=deal_score,
+            reverse=True
+        )
+
+    return results
+
+
 # ============================================================
-# SESSION STATE
+# HEADER
 # ============================================================
+st.title("🛍️ Local Price Finder AI")
 
-if "priced_results" not in st.session_state:
+st.markdown(
+    """
+### Find better prices, nearby stores and trustworthy customer insights.
 
-    st.session_state.priced_results = []
-
-
-if "stores" not in st.session_state:
-
-    st.session_state.stores = []
-
-
-# ============================================================
-# TITLE
-# ============================================================
-
-st.title(
-    "🛍️ Local Price Finder AI"
+Compare online prices, discover local stores, and analyze real customer
+review text before making a purchase.
+"""
 )
 
-st.write(
-    "Find the best prices, nearby stores, "
-    "customer satisfaction and smart deals "
-    "using SerpApi."
-)
-
-
 # ============================================================
-# INPUT SECTION
+# SIDEBAR
 # ============================================================
+with st.sidebar:
 
-st.subheader(
-    "🔎 Search Product"
-)
+    st.header("⚙️ Search Settings")
 
-product = st.text_input(
-    "🛍️ Product Name",
-    placeholder="Example: iPhone 16"
-)
+    product = st.text_input(
+        "🛍️ Product",
+        placeholder="e.g. iPhone 16"
+    )
 
-location = st.text_input(
-    "📍 Your Location",
-    placeholder="Example: Hyderabad"
-)
-
-
-col1, col2 = st.columns(2)
-
-
-with col1:
+    location = st.text_input(
+        "📍 Location",
+        value="Hyderabad"
+    )
 
     budget = st.number_input(
         "💰 Maximum Budget (₹)",
         min_value=0,
-        value=0,
+        value=100000,
         step=1000
     )
 
-
-with col2:
-
-    radius = st.selectbox(
+    radius_km = st.selectbox(
         "📍 Store Search Radius",
+        [5, 10, 25, 50],
+        index=0
+    )
+
+    condition = st.selectbox(
+        "📦 Product Condition",
         [
-            "5 km",
-            "10 km",
-            "25 km",
-            "50 km"
+            "Any",
+            "New",
+            "Used",
+            "Refurbished"
         ]
     )
 
-    radius_km = int(
-        radius.replace(
-            " km",
-            ""
-        )
+    priority = st.selectbox(
+        "🎯 Priority",
+        [
+            "Lowest Price",
+            "Best Overall Deal",
+            "Nearest Store",
+            "Best Rating"
+        ]
     )
 
+    st.divider()
 
-condition = st.selectbox(
-    "📦 Product Condition",
-    [
-        "Any",
-        "New",
-        "Used",
-        "Refurbished"
-    ]
-)
+    st.subheader("🔌 Data Mode")
 
+    search_mode = st.radio(
+        "Choose data source:",
+        [
+            "🎭 Demo Mode",
+            "🌐 Live SerpApi"
+        ],
+        index=0
+    )
 
-priority = st.selectbox(
-    "🎯 Priority",
-    [
-        "Lowest Price",
-        "Best Overall Deal",
-        "Nearest Store",
-        "Best Rating"
-    ]
-)
+    st.session_state.search_mode = search_mode
 
+    if search_mode == "🌐 Live SerpApi":
 
-# ============================================================
-# NEARBY LOCAL STORES
-# ============================================================
-
-st.divider()
-
-st.subheader(
-    "📍 Nearby Local Stores"
-)
-
-
-if st.button(
-    "📍 Find Nearby Stores",
-    use_container_width=True
-):
-
-    if product and location:
-
-        with st.spinner(
-            "📍 Finding nearby stores..."
-        ):
-
-            stores = search_local_stores(
-                product,
-                location,
-                radius_km
-            )
-
-        st.session_state.stores = stores
-
-        if stores:
-
+        if get_secret_status():
             st.success(
-                f"Found {len(stores)} "
-                f"store(s) within "
-                f"{radius_km} km."
+                "🔐 SerpApi key detected."
             )
-
         else:
-
             st.warning(
-                f"⚠️ No stores found within "
-                f"{radius_km} km."
+                "⚠️ SERPAPI_API_KEY is missing."
             )
 
     else:
 
-        st.warning(
-            "⚠️ Please enter both product "
-            "and location."
+        st.info(
+            "🎭 Demo Mode uses built-in sample "
+            "data and does not consume SerpApi quota."
         )
-
-
-# ============================================================
-# DISPLAY NEARBY STORES
-# ============================================================
-
-if st.session_state.stores:
-
-    for store in (
-        st.session_state.stores
-    ):
-
-        st.markdown("---")
-
-        st.subheader(
-            f"🏪 {store.get('title', 'Store')}"
-        )
-
-        address = store.get(
-            "address"
-        )
-
-        if address:
-
-            st.write(
-                f"📍 **Address:** {address}"
-            )
-
-        rating = store.get(
-            "rating"
-        )
-
-        if rating:
-
-            st.write(
-                f"⭐ **Rating:** {rating}"
-            )
-
-        reviews = store.get(
-            "reviews"
-        )
-
-        if reviews:
-
-            st.write(
-                f"💬 **Reviews:** {reviews}"
-            )
-
-        phone = store.get(
-            "phone"
-        )
-
-        if phone:
-
-            st.write(
-                f"📞 **Phone:** {phone}"
-            )
-
-        distance = store.get(
-            "distance_km"
-        )
-
-        if distance is not None:
-
-            st.write(
-                f"📏 **Distance:** "
-                f"{distance} km"
-            )
-
-        place_id = store.get(
-            "place_id"
-        )
-
-        if place_id:
-
-            maps_url = (
-                "https://www.google.com/maps/"
-                f"search/?api=1&query="
-                f"{store.get('title', '')}"
-                f"&query_place_id="
-                f"{place_id}"
-            )
-
-        else:
-
-            maps_url = (
-                "https://www.google.com/maps/"
-                "search/?api=1&query="
-                f"{store.get('title', '')}"
-            )
-
-        st.link_button(
-            "🗺️ Get Directions",
-            maps_url
-        )
-
 
 # ============================================================
 # FIND BEST PRICES
 # ============================================================
-
 st.divider()
 
 if st.button(
@@ -930,257 +742,199 @@ if st.button(
     use_container_width=True
 ):
 
-    if product and location:
+    if not product.strip():
+
+        st.warning(
+            "⚠️ Please enter a product name."
+        )
+
+    elif not location.strip():
+
+        st.warning(
+            "⚠️ Please enter a location."
+        )
+
+    else:
 
         with st.spinner(
-            "🔎 Searching prices..."
+            "🔍 Finding the best prices..."
         ):
 
-            results = search_product_prices(
-                product,
-                location
-            )
+            if search_mode == "🎭 Demo Mode":
 
-        # ----------------------------------------------------
-        # CONDITION FILTER
-        # ----------------------------------------------------
+                results = demo_price_results(
+                    product,
+                    location
+                )
 
+            else:
+
+                results = search_product_prices(
+                    product,
+                    location
+                )
+
+        # Condition filtering
         if condition != "Any":
 
-            filtered_results = []
+            filtered = []
 
             for item in results:
 
-                title = str(
+                item_condition = str(
                     item.get(
-                        "title",
+                        "second_hand_condition",
                         ""
                     )
                 ).lower()
 
-                if condition.lower() in title:
+                if condition == "New":
 
-                    filtered_results.append(
-                        item
-                    )
+                    if not item_condition:
+                        filtered.append(item)
 
-            # Keep original results if filter
-            # would otherwise remove everything
-            if filtered_results:
+                elif condition.lower() in item_condition:
 
-                results = filtered_results
+                    filtered.append(item)
 
+            if filtered:
+                results = filtered
 
-        # ----------------------------------------------------
-        # BUDGET FILTER
-        # ----------------------------------------------------
-
+        # Budget filtering
         if budget > 0:
 
             budget_results = []
 
             for item in results:
 
-                price = item.get(
-                    "extracted_price"
+                price = safe_float(
+                    item.get(
+                        "extracted_price"
+                    )
                 )
 
-                try:
-
-                    price = float(price)
-
-                    if price <= budget:
-
-                        budget_results.append(
-                            item
-                        )
-
-                except Exception:
-
-                    pass
+                if price is not None and price <= budget:
+                    budget_results.append(item)
 
             if budget_results:
-
                 results = budget_results
 
-
-        # ----------------------------------------------------
-        # DEAL SCORE
-        # ----------------------------------------------------
-
-        for item in results:
-
-            item["deal_score"] = (
-                calculate_deal_score(item)
-            )
-
-
-        # ----------------------------------------------------
-        # PRIORITY SORTING
-        # ----------------------------------------------------
-
-        if priority == "Lowest Price":
-
-            results.sort(
-                key=lambda x:
-                x.get(
-                    "extracted_price",
-                    float("inf")
-                )
-                if isinstance(
-                    x.get("extracted_price"),
-                    (int, float)
-                )
-                else float("inf")
-            )
-
-        elif priority == "Best Overall Deal":
-
-            results.sort(
-                key=lambda x:
-                x.get(
-                    "deal_score",
-                    0
-                ),
-                reverse=True
-            )
-
-        elif priority == "Best Rating":
-
-            results.sort(
-                key=lambda x:
-                x.get(
-                    "rating",
-                    0
-                )
-                if isinstance(
-                    x.get("rating"),
-                    (int, float)
-                )
-                else 0,
-                reverse=True
-            )
-
-        elif priority == "Nearest Store":
-
-            # Online shopping results don't
-            # necessarily have distance.
-            # Keep results in SerpApi order.
-            pass
-
-
-        st.session_state.priced_results = (
-            results
+        results = sort_results(
+            results,
+            priority
         )
 
-    else:
-
-        st.warning(
-            "⚠️ Please enter both product "
-            "and location."
-        )
-
+        st.session_state.priced_results = results
 
 # ============================================================
 # PRICE RESULTS
 # ============================================================
-
-priced_results = (
-    st.session_state.priced_results
-)
-
+priced_results = st.session_state.priced_results
 
 if priced_results:
 
-    st.divider()
+    st.subheader("💰 Best Available Prices")
 
-    st.subheader(
-        "💰 Best Price Results"
-    )
-
-    # --------------------------------------------------------
-    # DISPLAY PRODUCTS
-    # --------------------------------------------------------
+    prices = []
 
     for item in priced_results:
 
-        st.markdown("---")
+        price = safe_float(
+            item.get("extracted_price")
+        )
+
+        if price is not None:
+            prices.append(price)
+
+    if prices:
+
+        lowest_price = min(prices)
+        highest_price = max(prices)
+        savings = highest_price - lowest_price
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(
+                "💰 Lowest Price",
+                f"₹{lowest_price:,.0f}"
+            )
+
+        with col2:
+            st.metric(
+                "📈 Highest Price",
+                f"₹{highest_price:,.0f}"
+            )
+
+        with col3:
+            st.metric(
+                "💸 Potential Savings",
+                f"₹{savings:,.0f}"
+            )
+
+    st.divider()
+
+    for index, item in enumerate(priced_results):
 
         title = item.get(
             "title",
-            "Product"
+            "Unknown Product"
         )
 
-        st.subheader(
-            f"🛍️ {title}"
+        price = safe_float(
+            item.get("extracted_price")
         )
+
+        rating = item.get("rating")
+        reviews = item.get("reviews")
 
         source = item.get(
-            "source"
+            "source",
+            "Online Store"
         )
 
-        if source:
-
-            st.write(
-                f"🏪 **Store:** {source}"
-            )
-
-        price = item.get(
-            "price"
+        st.markdown(
+            f"### {index + 1}. 🛍️ {title}"
         )
 
-        extracted_price = item.get(
-            "extracted_price"
-        )
+        col1, col2, col3, col4 = st.columns(4)
 
-        if price:
-
-            st.write(
-                f"💰 **Price:** {price}"
+        with col1:
+            st.metric(
+                "Price",
+                f"₹{price:,.0f}"
+                if price is not None
+                else "N/A"
             )
 
-        elif extracted_price is not None:
-
-            st.write(
-                f"💰 **Price:** "
-                f"₹{extracted_price:,.0f}"
+        with col2:
+            st.metric(
+                "⭐ Rating",
+                str(rating)
+                if rating is not None
+                else "N/A"
             )
 
-        rating = item.get(
-            "rating"
-        )
-
-        if rating:
-
-            st.write(
-                f"⭐ **Rating:** {rating}/5"
+        with col3:
+            st.metric(
+                "💬 Reviews",
+                f"{reviews:,}"
+                if isinstance(reviews, int)
+                else str(reviews or "N/A")
             )
 
-        review_count = item.get(
-            "reviews"
-        )
-
-        if review_count:
-
-            st.write(
-                f"💬 **Reviews:** "
-                f"{review_count}"
+        with col4:
+            st.metric(
+                "🏪 Store",
+                source
             )
 
-        deal_score = item.get(
-            "deal_score"
-        )
+        delivery = item.get("delivery")
 
-        if deal_score:
-
-            st.write(
-                f"🎯 **Deal Score:** "
-                f"{deal_score}/100"
+        if delivery:
+            st.caption(
+                f"🚚 {delivery}"
             )
-
-        # ----------------------------------------------------
-        # VISIT WEBSITE BUTTON
-        # ----------------------------------------------------
 
         product_link = (
             item.get("website_link")
@@ -1189,195 +943,301 @@ if priced_results:
         )
 
         if product_link:
-
             st.link_button(
                 "🌐 Visit Website",
                 product_link
             )
 
-        else:
-
-            st.info(
-                "🌐 Website link is not "
-                "available for this result."
-            )
-
+        st.divider()
 
     # ========================================================
-    # BEST ONLINE PRICE
+    # SMART DEAL RECOMMENDATION
     # ========================================================
-
-    st.divider()
-
     st.subheader(
-        "🏆 Best Online Price"
+        "🤖 Smart Deal Recommendation"
     )
 
-    valid_prices = []
+    best_item = priced_results[0]
 
-    for item in priced_results:
+    best_price = safe_float(
+        best_item.get("extracted_price")
+    )
 
-        price = item.get(
-            "extracted_price"
-        )
+    best_rating = safe_float(
+        best_item.get("rating")
+    )
 
-        try:
+    best_reviews = best_item.get(
+        "reviews"
+    )
 
-            price = float(price)
+    best_source = best_item.get(
+        "source",
+        "Online Store"
+    )
 
-            valid_prices.append(
-                (price, item)
-            )
+    recommendation_parts = []
 
-        except Exception:
-
-            pass
-
-
-    if valid_prices:
-
-        valid_prices.sort(
-            key=lambda x: x[0]
-        )
-
-        best_price, best_item = (
-            valid_prices[0]
-        )
-
-        st.success(
-            f"🏆 Best Price: "
+    if best_price is not None:
+        recommendation_parts.append(
             f"₹{best_price:,.0f}"
         )
-        best_source = best_item.get("source")
 
-        if best_source:
-            st.write(
-                f"🏪 **Available at:** {best_source}"
-            )
-
-        best_link = (
-            best_item.get("website_link")
-            or best_item.get("product_link")
-            or best_item.get("link")
+    if best_rating is not None:
+        recommendation_parts.append(
+            f"{best_rating:.1f}⭐"
         )
 
-        if best_link:
-            st.link_button(
-                "🌐 Visit Website",
-                best_link
+    if best_reviews is not None:
+        recommendation_parts.append(
+            f"{best_reviews:,} reviews"
+        )
+
+    details = ", ".join(
+        recommendation_parts
+    )
+
+    st.success(
+        f"🏆 Recommended deal: "
+        f"**{best_item.get('title', 'Best Product')}** "
+        f"from **{best_source}**"
+        + (f" — {details}" if details else "")
+    )
+
+else:
+
+    st.info(
+        "🔎 Enter a product and click "
+        "**Find Best Prices** to begin."
+    )
+
+# ============================================================
+# NEARBY LOCAL STORES
+# ============================================================
+st.divider()
+
+st.subheader(
+    "📍 Nearby Local Stores"
+)
+
+if st.button(
+    "📍 Find Nearby Stores",
+    use_container_width=True
+):
+
+    if not product.strip():
+
+        st.warning(
+            "⚠️ Enter a product first."
+        )
+
+    elif not location.strip():
+
+        st.warning(
+            "⚠️ Enter a location first."
+        )
+
+    else:
+
+        with st.spinner(
+            "📍 Finding nearby stores..."
+        ):
+
+            if search_mode == "🎭 Demo Mode":
+
+                stores = demo_stores(
+                    product,
+                    location
+                )
+
+            else:
+
+                stores = search_local_stores_live(
+                    product,
+                    location,
+                    radius_km
+                )
+
+        if stores:
+
+            st.success(
+                f"✅ Found {len(stores)} nearby store(s)."
             )
+
+            for store in stores:
+
+                st.markdown(
+                    f"### 📍 {store.get('title', 'Store')}"
+                )
+
+                st.write(
+                    store.get(
+                        "address",
+                        "Address unavailable"
+                    )
+                )
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+
+                    distance = store.get(
+                        "distance_km"
+                    )
+
+                    st.metric(
+                        "📏 Distance",
+                        f"{distance:.1f} km"
+                        if isinstance(distance, (int, float))
+                        else "Nearby"
+                    )
+
+                with col2:
+
+                    st.metric(
+                        "⭐ Rating",
+                        str(
+                            store.get(
+                                "rating",
+                                "N/A"
+                            )
+                        )
+                    )
+
+                with col3:
+
+                    store_reviews = store.get(
+                        "reviews"
+                    )
+
+                    st.metric(
+                        "💬 Reviews",
+                        str(
+                            store_reviews
+                            if store_reviews is not None
+                            else "N/A"
+                        )
+                    )
+
+                if store.get("link"):
+
+                    st.link_button(
+                        "🗺️ Open in Google Maps",
+                        store["link"]
+                    )
+
+                st.divider()
+
         else:
-            st.info(
-                "🌐 Website link is not available."
+
+            st.warning(
+                f"⚠️ No stores found within "
+                f"{radius_km} km."
             )
 
-    # ========================================================
-    # SAVINGS ANALYSIS
-    # ========================================================
+# ============================================================
+# AI CUSTOMER REVIEW ANALYSIS
+# ============================================================
+st.divider()
 
-    st.divider()
+st.subheader(
+    "⭐ AI Customer Review Analysis"
+)
 
-    st.subheader(
-        "💸 Savings Analysis"
-    )
-
-    all_prices = [
-        price
-        for price, item
-        in valid_prices
-    ]
-
-    if all_prices:
-
-        lowest_price = min(
-            all_prices
-        )
-
-        highest_price = max(
-            all_prices
-        )
-
-        potential_savings = (
-            highest_price
-            -
-            lowest_price
-        )
-
-        col1, col2, col3 = (
-            st.columns(3)
-        )
-
-        with col1:
-
-            st.metric(
-                "Lowest Price",
-                f"₹{lowest_price:,.0f}"
-            )
-
-        with col2:
-
-            st.metric(
-                "Highest Price",
-                f"₹{highest_price:,.0f}"
-            )
-
-        with col3:
-
-            st.metric(
-                "Potential Savings",
-                f"₹{potential_savings:,.0f}"
-            )
-
-
-    # ========================================================
-    # AI CUSTOMER REVIEW ANALYSIS
-    # ========================================================
-
-    st.divider()
-
-    st.subheader(
-        "⭐ AI Customer Review Analysis"
-    )
-
-    # Keep this small because every Product API lookup is a
-    # separate SerpApi search. Results are cached for 1 hour.
-    products_to_check = priced_results[:3]
+if priced_results:
 
     reviewed_products = []
-    review_rate_limited = False
 
-    with st.spinner(
-        "🔍 Checking products for real customer reviews..."
-    ):
+    # Demo mode needs no additional API calls.
+    if search_mode == "🎭 Demo Mode":
 
-        # Sequential requests are intentionally used here.
-        # This avoids sending several Product API requests at once
-        # and protects the user's SerpApi throughput limit.
-        for product_item in products_to_check:
+        for product_item in priced_results:
 
-            product_with_reviews = get_reviewed_product(
+            review_data = demo_reviews(
                 product_item
             )
 
-            if product_with_reviews:
+            product_copy = product_item.copy()
 
-                if product_with_reviews.get("actual_reviews"):
-                    reviewed_products.append(
-                        product_with_reviews
+            product_copy["customer_rating"] = (
+                review_data["rating"]
+            )
+
+            product_copy["customer_review_count"] = (
+                review_data["review_count"]
+            )
+
+            product_copy["actual_reviews"] = (
+                review_data["reviews"]
+            )
+
+            reviewed_products.append(
+                product_copy
+            )
+
+    else:
+
+        products_to_check = priced_results[:3]
+
+        with st.spinner(
+            "🔍 Checking products for real customer reviews..."
+        ):
+
+            for product_item in products_to_check:
+
+                review_data = fetch_product_reviews(
+                    product_item
+                )
+
+                # IMPORTANT:
+                # Product is kept ONLY when actual
+                # customer review text exists.
+                if review_data and review_data.get(
+                    "reviews"
+                ):
+
+                    product_copy = product_item.copy()
+
+                    product_copy["customer_rating"] = (
+                        review_data.get("rating")
                     )
 
+                    product_copy["customer_review_count"] = (
+                        review_data.get("review_count")
+                    )
+
+                    product_copy["actual_reviews"] = (
+                        review_data.get("reviews")
+                    )
+
+                    reviewed_products.append(
+                        product_copy
+                    )
+
+    # --------------------------------------------------------
+    # DISPLAY ONLY PRODUCTS WITH REAL REVIEW TEXT
+    # --------------------------------------------------------
     if reviewed_products:
 
-        st.success(
-            f"✅ Found {len(reviewed_products)} "
-            f"product(s) with real customer review text."
-        )
+        if search_mode == "🎭 Demo Mode":
+
+            st.info(
+                "🎭 Demo review data is being used. "
+                "Switch to Live SerpApi mode when live quota is available."
+            )
+
+        else:
+
+            st.success(
+                f"✅ Found {len(reviewed_products)} "
+                f"product(s) with actual customer review text."
+            )
 
         for item in reviewed_products:
 
             title = item.get(
                 "title",
-                "Product"
+                "Unknown Product"
             )
 
             customer_rating = item.get(
@@ -1413,8 +1273,6 @@ if priced_results:
                         text.strip()
                     )
 
-            # Safety check: never display a product without
-            # actual review text.
             if not review_texts:
                 continue
 
@@ -1432,36 +1290,33 @@ if priced_results:
             )
 
             # ------------------------------------------------
-            # ORIGINAL CUSTOMER DATA
+            # TRUST INFORMATION
             # ------------------------------------------------
-
             col1, col2, col3 = st.columns(3)
 
             with col1:
 
-                if customer_rating is not None:
-                    st.metric(
-                        "⭐ Customer Rating",
+                st.metric(
+                    "⭐ Customer Rating",
+                    (
                         f"{customer_rating} / 5"
+                        if customer_rating is not None
+                        else "N/A"
                     )
-                else:
-                    st.metric(
-                        "⭐ Customer Rating",
-                        "N/A"
-                    )
+                )
 
             with col2:
 
-                if customer_review_count is not None:
-                    st.metric(
-                        "💬 Customer Reviews",
-                        str(customer_review_count)
+                count = customer_review_count
+
+                st.metric(
+                    "💬 Customer Reviews",
+                    (
+                        f"{count:,}"
+                        if isinstance(count, int)
+                        else str(count or "N/A")
                     )
-                else:
-                    st.metric(
-                        "💬 Customer Reviews",
-                        "N/A"
-                    )
+                )
 
             with col3:
 
@@ -1471,9 +1326,8 @@ if priced_results:
                 )
 
             # ------------------------------------------------
-            # AI TEXT ANALYSIS
+            # AI ANALYSIS
             # ------------------------------------------------
-
             st.markdown(
                 "#### 🤖 AI Review Analysis"
             )
@@ -1484,7 +1338,7 @@ if priced_results:
 
                 st.metric(
                     "AI Review Score",
-                    f'{analysis["score"]} / 100'
+                    f"{analysis['score']} / 100"
                 )
 
             with col2:
@@ -1497,7 +1351,6 @@ if priced_results:
             # ------------------------------------------------
             # SENTIMENT BREAKDOWN
             # ------------------------------------------------
-
             st.markdown(
                 "#### 📊 Sentiment Breakdown"
             )
@@ -1505,24 +1358,29 @@ if priced_results:
             col1, col2, col3 = st.columns(3)
 
             with col1:
+
                 st.success(
-                    f"😊 Positive: {analysis['positive']}"
+                    f"😊 Positive: "
+                    f"{analysis['positive']}"
                 )
 
             with col2:
+
                 st.info(
-                    f"😐 Neutral: {analysis['neutral']}"
+                    f"😐 Neutral: "
+                    f"{analysis['neutral']}"
                 )
 
             with col3:
+
                 st.error(
-                    f"👎 Negative: {analysis['negative']}"
+                    f"👎 Negative: "
+                    f"{analysis['negative']}"
                 )
 
             # ------------------------------------------------
-            # ACTUAL CUSTOMER REVIEW TEXT
+            # ACTUAL REVIEWS
             # ------------------------------------------------
-
             with st.expander(
                 "💬 View Customer Reviews"
             ):
@@ -1534,10 +1392,7 @@ if priced_results:
                         ""
                     )
 
-                    if not (
-                        isinstance(review_text, str)
-                        and review_text.strip()
-                    ):
+                    if not review_text:
                         continue
 
                     reviewer = review.get(
@@ -1564,20 +1419,23 @@ if priced_results:
                     )
 
                     if review_rating is not None:
+
                         st.write(
                             f"⭐ {review_rating} / 5"
                         )
 
                     if review_title:
+
                         st.markdown(
                             f"**{review_title}**"
                         )
 
                     st.write(
-                        review_text.strip()
+                        review_text
                     )
 
                     if review_date:
+
                         st.caption(
                             f"📅 {review_date}"
                         )
@@ -1586,136 +1444,33 @@ if priced_results:
 
     else:
 
-        st.info(
-            "ℹ️ No products with actual customer "
-            "review text were found in the first 3 results."
-        )
-
-    # ========================================================
-    # SMART DEAL RECOMMENDATION
-    # ========================================================
-
-    st.divider()
-
-    st.subheader(
-        "🤖 Smart Deal Recommendation"
-    )
-
-    if priced_results:
-
-        best_item = priced_results[0]
-
-        best_price = best_item.get(
-            "extracted_price"
-        )
-
-        best_rating = best_item.get(
-            "rating"
-        )
-
-        best_reviews = best_item.get(
-            "reviews"
-        )
-
-        best_source = best_item.get(
-            "source",
-            "Unknown Store"
-        )
-
-        best_title = best_item.get(
-            "title",
-            "Product"
-        )
-
-        st.success(
-            f"🏆 Recommended Deal: "
-            f"{best_title}"
-        )
-
-        if best_price is not None:
-
-            st.write(
-                f"💰 **Price:** "
-                f"₹{best_price:,.0f}"
-            )
-
-        if best_rating:
-
-            st.write(
-                f"⭐ **Rating:** "
-                f"{best_rating}/5"
-            )
-
-        if best_reviews:
-
-            st.write(
-                f"💬 **Reviews:** "
-                f"{best_reviews}"
-            )
-
-        st.write(
-            f"🏪 **Seller:** "
-            f"{best_source}"
-        )
-
-        reasons = []
-
-        if best_price is not None:
-            reasons.append(
-                "competitive price"
-            )
-
-        if best_rating:
-
-            try:
-
-                if float(best_rating) >= 4:
-                    reasons.append(
-                        "strong customer rating"
-                    )
-
-            except Exception:
-                pass
-
-        if best_reviews:
-
-            try:
-
-                if int(best_reviews) >= 100:
-                    reasons.append(
-                        "good review volume"
-                    )
-
-            except Exception:
-                pass
-
-        if reasons:
+        if search_mode == "🌐 Live SerpApi":
 
             st.info(
-                "💡 Recommended because of "
-                + ", ".join(reasons)
-                + "."
+                "ℹ️ No products with actual customer "
+                "review text were found. Products without "
+                "review text are excluded."
             )
 
-        best_item_link = (
-            best_item.get("website_link")
-            or best_item.get("product_link")
-            or best_item.get("link")
-        )
+        else:
 
-        if best_item_link:
-
-            st.link_button(
-                "🛒 Buy / Visit Best Deal",
-                best_item_link
+            st.info(
+                "ℹ️ No review data available."
             )
 
+else:
+
+    st.info(
+        "🔎 Find product prices first to analyze "
+        "customer reviews."
+    )
+
+# ============================================================
 # FOOTER
 # ============================================================
-
 st.divider()
 
 st.caption(
     "🛍️ Local Price Finder AI | "
-    "Powered by SerpApi"
+    "Powered by SerpApi + Streamlit + TextBlob"
 )
