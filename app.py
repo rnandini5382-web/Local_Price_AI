@@ -435,6 +435,43 @@ def fetch_product_reviews_cached(product_id, page_token):
 
     except Exception:
         return None
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
+def fetch_reviews_for_product(product):
+    """
+    Wrapper used for parallel review checking.
+    """
+
+    product_id = product.get("product_id")
+
+    page_token = product.get(
+        "immersive_product_page_token"
+    )
+
+    review_data = fetch_product_reviews_cached(
+        product_id,
+        page_token
+    )
+
+    if not review_data:
+        return None
+
+    product_copy = product.copy()
+
+    product_copy["customer_rating"] = (
+        review_data.get("rating")
+    )
+
+    product_copy["customer_review_count"] = (
+        review_data.get("review_count")
+    )
+
+    product_copy["actual_reviews"] = (
+        review_data.get("reviews", [])
+    )
+
+    return product_copy
 def analyze_customer_reviews(reviews):
 
     if not reviews:
