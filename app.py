@@ -1,9 +1,10 @@
-SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
 import streamlit as st
 import requests
 import math
 import re
 from textblob import TextBlob
+
+SERPAPI_API_KEY = st.secrets["SERPAPI_API_KEY"]
 
 
 # ============================================================
