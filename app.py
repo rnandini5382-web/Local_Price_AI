@@ -361,6 +361,95 @@ def calculate_deal_score(item):
 # ============================================================
 # AI CUSTOMER REVIEW ANALYSIS
 # ============================================================
+def fetch_product_reviews(product):
+    """
+    Fetch real customer reviews for a product using
+    SerpApi Google Product API.
+    Returns None if no actual review text is available.
+    """
+
+    product_id = product.get("product_id")
+    page_token = product.get("immersive_product_page_token")
+
+    if not product_id and not page_token:
+        return None
+
+    url = "https://serpapi.com/search.json"
+
+    params = {
+        "engine": "google_product",
+        "hl": "en",
+        "gl": "in",
+        "api_key": SERPAPI_API_KEY
+    }
+
+    # Prefer the exact offer/variant when available
+    if page_token:
+        params["page_token"] = page_token
+    else:
+        params["product_id"] = product_id
+        params["offer_view"] = "true"
+
+    try:
+        response = requests.get(
+            url,
+            params=params,
+            timeout=12
+        )
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        product_results = data.get(
+            "product_results",
+            {}
+        )
+
+        user_reviews = product_results.get(
+            "user_reviews",
+            []
+        )
+
+        # Keep ONLY reviews containing actual text
+        real_reviews = []
+
+        for review in user_reviews:
+
+            if not isinstance(review, dict):
+                continue
+
+            review_text = review.get(
+                "text",
+                ""
+            )
+
+            if (
+                isinstance(review_text, str)
+                and review_text.strip()
+            ):
+                real_reviews.append(review)
+
+        # No actual review text = exclude product
+        if not real_reviews:
+            return None
+
+        return {
+            "rating": product_results.get(
+                "rating",
+                product.get("rating")
+            ),
+
+            "review_count": product_results.get(
+                "reviews",
+                product.get("reviews")
+            ),
+
+            "reviews": real_reviews
+        }
+
+    except Exception:
+        return None
 
 def analyze_customer_reviews(reviews):
 
