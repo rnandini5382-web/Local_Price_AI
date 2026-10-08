@@ -2,7 +2,6 @@ import streamlit as st
 import requests
 import math
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from textblob import TextBlob
 
 
@@ -79,13 +78,160 @@ def search_product_prices(product, location):
 
         return results
 
-    except Exception as e:
+    except requests.exceptions.HTTPError:
+
+        if response.status_code == 429:
+            st.error(
+                "⚠️ SerpApi request limit reached. "
+                "Please wait for your quota/rate limit to reset."
+            )
+        else:
+            st.error(
+                f"❌ Price search failed "
+                f"(HTTP {response.status_code})."
+            )
+
+        return []
+
+    except requests.exceptions.Timeout:
 
         st.error(
-            f"❌ Price search failed: {e}"
+            "⏱️ Price search timed out. Please try again."
         )
 
         return []
+
+    except Exception:
+
+        st.error(
+            "❌ Unable to fetch product prices right now."
+        )
+
+        return []
+
+
+# ============================================================
+# FETCH REAL CUSTOMER REVIEWS
+# ============================================================
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def fetch_product_reviews_cached(product_id, page_token):
+    """Fetch real customer review text from SerpApi Google Product API.
+
+    Cached for 1 hour to avoid repeating the same Product API request.
+    Returns None when no actual review text is available.
+    """
+
+    if not product_id and not page_token:
+        return None
+
+    url = "https://serpapi.com/search.json"
+
+    params = {
+        "engine": "google_product",
+        "hl": "en",
+        "gl": "in",
+        "api_key": SERPAPI_API_KEY
+    }
+
+    if page_token:
+        # Exact Shopping offer/variant and its review set.
+        params["page_token"] = page_token
+    else:
+        params["product_id"] = product_id
+        params["offer_view"] = "true"
+
+    try:
+        response = requests.get(
+            url,
+            params=params,
+            timeout=10
+        )
+
+        if response.status_code == 429:
+            return {"rate_limited": True}
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        product_results = data.get(
+            "product_results",
+            {}
+        )
+
+        user_reviews = product_results.get(
+            "user_reviews",
+            []
+        )
+
+        real_reviews = []
+
+        for review in user_reviews:
+            if not isinstance(review, dict):
+                continue
+
+            review_text = review.get("text", "")
+
+            if (
+                isinstance(review_text, str)
+                and review_text.strip()
+            ):
+                real_reviews.append(review)
+
+        # IMPORTANT: rating alone is NOT enough.
+        # A product is accepted only when real review text exists.
+        if not real_reviews:
+            return None
+
+        return {
+            "rating": product_results.get("rating"),
+            "review_count": product_results.get("reviews"),
+            "reviews": real_reviews
+        }
+
+    except Exception:
+        return None
+
+
+def get_reviewed_product(product):
+    """Attach real review data to one Shopping result."""
+
+    product_id = product.get("product_id")
+    page_token = product.get(
+        "immersive_product_page_token"
+    )
+
+    review_data = fetch_product_reviews_cached(
+        product_id,
+        page_token
+    )
+
+    if not review_data or review_data.get("rate_limited"):
+        return None
+
+    product_copy = product.copy()
+
+    # Product API rating is preferred; Shopping rating is a safe fallback
+    # for the displayed customer rating when review text is present.
+    product_copy["customer_rating"] = (
+        review_data.get("rating")
+        if review_data.get("rating") is not None
+        else product.get("rating")
+    )
+
+    product_copy["customer_review_count"] = (
+        review_data.get("review_count")
+        if review_data.get("review_count") is not None
+        else product.get("reviews")
+    )
+
+    product_copy["actual_reviews"] = review_data.get(
+        "reviews",
+        []
+    )
+
+    return product_copy
 
 
 # ============================================================
@@ -290,10 +436,33 @@ def search_local_stores(
 
         return filtered_stores
 
-    except Exception as e:
+    except requests.exceptions.HTTPError:
+
+        if response.status_code == 429:
+            st.error(
+                "⚠️ SerpApi request limit reached. "
+                "Please wait for your quota/rate limit to reset."
+            )
+        else:
+            st.error(
+                f"❌ Nearby store search failed "
+                f"(HTTP {response.status_code})."
+            )
+
+        return []
+
+    except requests.exceptions.Timeout:
 
         st.error(
-            f"❌ Nearby store search failed: {e}"
+            "⏱️ Nearby store search timed out. Please try again."
+        )
+
+        return []
+
+    except Exception:
+
+        st.error(
+            "❌ Unable to find nearby stores right now."
         )
 
         return []
@@ -362,117 +531,7 @@ def calculate_deal_score(item):
 # ============================================================
 # AI CUSTOMER REVIEW ANALYSIS
 # ============================================================
-@st.cache_data(ttl=3600, show_spinner=False)
-def fetch_product_reviews_cached(product_id, page_token):
-    """
-    Fetch real customer reviews using SerpApi Google Product API.
-    Cached for 1 hour to avoid repeated API calls.
-    """
 
-    if not product_id and not page_token:
-        return None
-
-    url = "https://serpapi.com/search.json"
-
-    params = {
-        "engine": "google_product",
-        "hl": "en",
-        "gl": "in",
-        "api_key": SERPAPI_API_KEY
-    }
-
-    if page_token:
-        params["page_token"] = page_token
-    else:
-        params["product_id"] = product_id
-        params["offer_view"] = "true"
-
-    try:
-        response = requests.get(
-            url,
-            params=params,
-            timeout=8
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        product_results = data.get(
-            "product_results",
-            {}
-        )
-
-        user_reviews = product_results.get(
-            "user_reviews",
-            []
-        )
-
-        # Keep ONLY reviews containing actual text
-        real_reviews = []
-
-        for review in user_reviews:
-
-            if not isinstance(review, dict):
-                continue
-
-            text = review.get("text", "")
-
-            if (
-                isinstance(text, str)
-                and text.strip()
-            ):
-                real_reviews.append(review)
-
-        # No actual review text = product rejected
-        if not real_reviews:
-            return None
-
-        return {
-            "rating": product_results.get("rating"),
-            "review_count": product_results.get("reviews"),
-            "reviews": real_reviews
-        }
-
-    except Exception:
-        return None
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
-
-def fetch_reviews_for_product(product):
-    """
-    Wrapper used for parallel review checking.
-    """
-
-    product_id = product.get("product_id")
-
-    page_token = product.get(
-        "immersive_product_page_token"
-    )
-
-    review_data = fetch_product_reviews_cached(
-        product_id,
-        page_token
-    )
-
-    if not review_data:
-        return None
-
-    product_copy = product.copy()
-
-    product_copy["customer_rating"] = (
-        review_data.get("rating")
-    )
-
-    product_copy["customer_review_count"] = (
-        review_data.get("review_count")
-    )
-
-    product_copy["actual_reviews"] = (
-        review_data.get("reviews", [])
-    )
-
-    return product_copy
 def analyze_customer_reviews(reviews):
 
     if not reviews:
@@ -1158,7 +1217,7 @@ if priced_results:
 
         price = item.get(
             "extracted_price"
-)
+        )
 
         try:
 
@@ -1269,76 +1328,65 @@ if priced_results:
 
 
     # ========================================================
-    # ========================================================
     # AI CUSTOMER REVIEW ANALYSIS
     # ========================================================
 
     st.divider()
-    st.subheader("⭐ AI Customer Review Analysis")
 
-if priced_results:
+    st.subheader(
+        "⭐ AI Customer Review Analysis"
+    )
+
+    # Keep this small because every Product API lookup is a
+    # separate SerpApi search. Results are cached for 1 hour.
+    products_to_check = priced_results[:3]
 
     reviewed_products = []
-
-    products_to_check = priced_results[:5]
+    review_rate_limited = False
 
     with st.spinner(
         "🔍 Checking products for real customer reviews..."
     ):
 
-        with ThreadPoolExecutor(
-            max_workers=5
-        ) as executor:
+        # Sequential requests are intentionally used here.
+        # This avoids sending several Product API requests at once
+        # and protects the user's SerpApi throughput limit.
+        for product_item in products_to_check:
 
-            futures = [
-                executor.submit(
-                    fetch_reviews_for_product,
-                    product
-                )
-                for product in products_to_check
-            ]
+            product_with_reviews = get_reviewed_product(
+                product_item
+            )
 
-            for future in as_completed(futures):
+            if product_with_reviews:
 
-                try:
-
-                    result = future.result()
-
-                    if result:
-                        reviewed_products.append(
-                            result
-                        )
-
-                except Exception:
-                    continue
-
-    # ------------------------------------------------
-    # ONLY PRODUCTS WITH REAL REVIEW TEXT
-    # ------------------------------------------------
+                if product_with_reviews.get("actual_reviews"):
+                    reviewed_products.append(
+                        product_with_reviews
+                    )
 
     if reviewed_products:
 
         st.success(
             f"✅ Found {len(reviewed_products)} "
-            f"product(s) with real customer reviews."
+            f"product(s) with real customer review text."
         )
 
-        for product in reviewed_products:
+        for item in reviewed_products:
 
-            title = product.get(
+            title = item.get(
                 "title",
-                "Unknown Product"
+                "Product"
             )
 
-            customer_rating = product.get(
+            customer_rating = item.get(
                 "customer_rating"
             )
 
-            customer_review_count = product.get(
+            customer_review_count = item.get(
                 "customer_review_count"
             )
 
-            actual_reviews = product.get(
+            actual_reviews = item.get(
                 "actual_reviews",
                 []
             )
@@ -1363,6 +1411,8 @@ if priced_results:
                         text.strip()
                     )
 
+            # Safety check: never display a product without
+            # actual review text.
             if not review_texts:
                 continue
 
@@ -1379,34 +1429,37 @@ if priced_results:
                 f"### 🛍️ {title}"
             )
 
-            # CUSTOMER DATA
+            # ------------------------------------------------
+            # ORIGINAL CUSTOMER DATA
+            # ------------------------------------------------
+
             col1, col2, col3 = st.columns(3)
 
             with col1:
 
-                rating_text = (
-                    f"{customer_rating} / 5"
-                    if customer_rating is not None
-                    else "N/A"
-                )
-
-                st.metric(
-                    "⭐ Customer Rating",
-                    rating_text
-                )
+                if customer_rating is not None:
+                    st.metric(
+                        "⭐ Customer Rating",
+                        f"{customer_rating} / 5"
+                    )
+                else:
+                    st.metric(
+                        "⭐ Customer Rating",
+                        "N/A"
+                    )
 
             with col2:
 
-                review_count = (
-                    customer_review_count
-                    if customer_review_count is not None
-                    else 0
-                )
-
-                st.metric(
-                    "💬 Customer Reviews",
-                    f"{review_count:,}"
-                )
+                if customer_review_count is not None:
+                    st.metric(
+                        "💬 Customer Reviews",
+                        str(customer_review_count)
+                    )
+                else:
+                    st.metric(
+                        "💬 Customer Reviews",
+                        "N/A"
+                    )
 
             with col3:
 
@@ -1415,7 +1468,10 @@ if priced_results:
                     analysis["total"]
                 )
 
-            # AI ANALYSIS
+            # ------------------------------------------------
+            # AI TEXT ANALYSIS
+            # ------------------------------------------------
+
             st.markdown(
                 "#### 🤖 AI Review Analysis"
             )
@@ -1436,7 +1492,10 @@ if priced_results:
                     analysis["sentiment"]
                 )
 
-            # SENTIMENT
+            # ------------------------------------------------
+            # SENTIMENT BREAKDOWN
+            # ------------------------------------------------
+
             st.markdown(
                 "#### 📊 Sentiment Breakdown"
             )
@@ -1445,23 +1504,23 @@ if priced_results:
 
             with col1:
                 st.success(
-                    f"😊 Positive: "
-                    f"{analysis['positive']}"
+                    f"😊 Positive: {analysis['positive']}"
                 )
 
             with col2:
                 st.info(
-                    f"😐 Neutral: "
-                    f"{analysis['neutral']}"
+                    f"😐 Neutral: {analysis['neutral']}"
                 )
 
             with col3:
                 st.error(
-                    f"👎 Negative: "
-                    f"{analysis['negative']}"
+                    f"👎 Negative: {analysis['negative']}"
                 )
 
-            # REAL REVIEWS
+            # ------------------------------------------------
+            # ACTUAL CUSTOMER REVIEW TEXT
+            # ------------------------------------------------
+
             with st.expander(
                 "💬 View Customer Reviews"
             ):
@@ -1473,7 +1532,10 @@ if priced_results:
                         ""
                     )
 
-                    if not review_text:
+                    if not (
+                        isinstance(review_text, str)
+                        and review_text.strip()
+                    ):
                         continue
 
                     reviewer = review.get(
@@ -1510,7 +1572,7 @@ if priced_results:
                         )
 
                     st.write(
-                        review_text
+                        review_text.strip()
                     )
 
                     if review_date:
@@ -1524,15 +1586,9 @@ if priced_results:
 
         st.info(
             "ℹ️ No products with actual customer "
-            "review text were found."
+            "review text were found in the first 3 results."
         )
 
-else:
-
-    st.info(
-        "🔎 Find product prices first to analyze "
-        "customer reviews."
-    )   
     # ========================================================
     # SMART DEAL RECOMMENDATION
     # ========================================================
