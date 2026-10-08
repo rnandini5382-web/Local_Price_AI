@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import math
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from textblob import TextBlob
 
 
@@ -1273,41 +1274,47 @@ if priced_results:
     # ========================================================
 
     st.divider()
-
     st.subheader("⭐ AI Customer Review Analysis")
 
 if priced_results:
 
     reviewed_products = []
 
-    with st.spinner("🔍 Checking products for real customer reviews..."):
+    products_to_check = priced_results[:5]
 
-        for product in priced_results:
+    with st.spinner(
+        "🔍 Checking products for real customer reviews..."
+    ):
 
-            review_data = fetch_product_reviews(product)
+        with ThreadPoolExecutor(
+            max_workers=5
+        ) as executor:
 
-            # Keep ONLY products that have actual review text
-            if review_data and review_data.get("reviews"):
-
-                product_copy = product.copy()
-
-                product_copy["customer_rating"] = (
-                    review_data.get("rating")
+            futures = [
+                executor.submit(
+                    fetch_reviews_for_product,
+                    product
                 )
+                for product in products_to_check
+            ]
 
-                product_copy["customer_review_count"] = (
-                    review_data.get("review_count")
-                )
+            for future in as_completed(futures):
 
-                product_copy["actual_reviews"] = (
-                    review_data.get("reviews")
-                )
+                try:
 
-                reviewed_products.append(product_copy)
+                    result = future.result()
 
-    # -------------------------------------------------
-    # SHOW ONLY PRODUCTS WITH REAL CUSTOMER REVIEWS
-    # -------------------------------------------------
+                    if result:
+                        reviewed_products.append(
+                            result
+                        )
+
+                except Exception:
+                    continue
+
+    # ------------------------------------------------
+    # ONLY PRODUCTS WITH REAL REVIEW TEXT
+    # ------------------------------------------------
 
     if reviewed_products:
 
@@ -1336,7 +1343,6 @@ if priced_results:
                 []
             )
 
-            # Extract review text
             review_texts = []
 
             for review in actual_reviews:
@@ -1357,7 +1363,6 @@ if priced_results:
                         text.strip()
                     )
 
-            # Safety check
             if not review_texts:
                 continue
 
@@ -1374,43 +1379,34 @@ if priced_results:
                 f"### 🛍️ {title}"
             )
 
-            # -----------------------------------------
-            # CUSTOMER TRUST INFORMATION
-            # -----------------------------------------
-
+            # CUSTOMER DATA
             col1, col2, col3 = st.columns(3)
 
             with col1:
 
-                if customer_rating is not None:
+                rating_text = (
+                    f"{customer_rating} / 5"
+                    if customer_rating is not None
+                    else "N/A"
+                )
 
-                    st.metric(
-                        "⭐ Customer Rating",
-                        f"{customer_rating} / 5"
-                    )
-
-                else:
-
-                    st.metric(
-                        "⭐ Customer Rating",
-                        "N/A"
-                    )
+                st.metric(
+                    "⭐ Customer Rating",
+                    rating_text
+                )
 
             with col2:
 
-                if customer_review_count is not None:
+                review_count = (
+                    customer_review_count
+                    if customer_review_count is not None
+                    else 0
+                )
 
-                    st.metric(
-                        "💬 Customer Reviews",
-                        f"{customer_review_count:,}"
-                    )
-
-                else:
-
-                    st.metric(
-                        "💬 Customer Reviews",
-                        "N/A"
-                    )
+                st.metric(
+                    "💬 Customer Reviews",
+                    f"{review_count:,}"
+                )
 
             with col3:
 
@@ -1419,22 +1415,19 @@ if priced_results:
                     analysis["total"]
                 )
 
-            # -----------------------------------------
             # AI ANALYSIS
-            # -----------------------------------------
-
-            st.markdown("#### 🤖 AI Review Analysis")
+            st.markdown(
+                "#### 🤖 AI Review Analysis"
+            )
 
             col1, col2 = st.columns(2)
 
             with col1:
 
-                if analysis["score"] is not None:
-
-                    st.metric(
-                        "AI Review Score",
-                        f'{analysis["score"]} / 100'
-                    )
+                st.metric(
+                    "AI Review Score",
+                    f'{analysis["score"]} / 100'
+                )
 
             with col2:
 
@@ -1443,39 +1436,32 @@ if priced_results:
                     analysis["sentiment"]
                 )
 
-            # -----------------------------------------
-            # SENTIMENT BREAKDOWN
-            # -----------------------------------------
-
-            st.markdown("#### 📊 Sentiment Breakdown")
+            # SENTIMENT
+            st.markdown(
+                "#### 📊 Sentiment Breakdown"
+            )
 
             col1, col2, col3 = st.columns(3)
 
             with col1:
-
                 st.success(
                     f"😊 Positive: "
                     f"{analysis['positive']}"
                 )
 
             with col2:
-
                 st.info(
                     f"😐 Neutral: "
                     f"{analysis['neutral']}"
                 )
 
             with col3:
-
                 st.error(
                     f"👎 Negative: "
                     f"{analysis['negative']}"
                 )
 
-            # -----------------------------------------
-            # ACTUAL CUSTOMER REVIEWS
-            # -----------------------------------------
-
+            # REAL REVIEWS
             with st.expander(
                 "💬 View Customer Reviews"
             ):
@@ -1514,13 +1500,11 @@ if priced_results:
                     )
 
                     if review_rating is not None:
-
                         st.write(
                             f"⭐ {review_rating} / 5"
                         )
 
                     if review_title:
-
                         st.markdown(
                             f"**{review_title}**"
                         )
@@ -1530,7 +1514,6 @@ if priced_results:
                     )
 
                     if review_date:
-
                         st.caption(
                             f"📅 {review_date}"
                         )
@@ -1549,7 +1532,7 @@ else:
     st.info(
         "🔎 Find product prices first to analyze "
         "customer reviews."
-    )
+    )   
     # ========================================================
     # SMART DEAL RECOMMENDATION
     # ========================================================
